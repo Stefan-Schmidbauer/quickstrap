@@ -1,0 +1,48 @@
+# Python Package Requirements
+#
+# List all Python packages your application needs.
+# Uncomment and add your dependencies below.
+#
+# Format:
+#   package-name>=version
+#   package-name==exact.version
+#   package-name
+#
+# Examples:
+# requests>=2.31.0
+# flask==3.0.0
+# numpy
+# pandas>=2.0.0
+# pillow>=10.0.0
+# sqlalchemy>=2.0.0
+
+# GUI Frameworks
+# tkinter is included in Python, but you might need:
+# python3-tk (install via system packages)
+# PyQt6>=6.6.0
+# PySide6>=6.6.0
+
+# PDF Generation
+# reportlab>=4.0.0
+# pypdf>=3.0.0
+
+# Database
+# sqlalchemy>=2.0.0
+# psycopg2-binary>=2.9.0  # PostgreSQL
+# pymongo>=4.0.0          # MongoDB
+
+# Web Frameworks
+# flask>=3.0.0
+# django>=5.0.0
+# fastapi>=0.104.0
+
+# Data Processing
+# pandas>=2.0.0
+# numpy>=1.24.0
+# openpyxl>=3.1.0  # Excel files
+
+# Testing (for development profile)
+# pytest>=7.4.0
+# pytest-cov>=4.1.0
+
+# Add your dependencies here:

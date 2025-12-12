@@ -1,0 +1,40 @@
+# Quickstrap - Generic .gitignore for Python projects
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Installation logs
+install.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Claude Code
+.claude/
+
+# Development containers
+.devcontainer/
+
+# Project-specific (add your own)
+# data/
+# config/local.ini
+# *.db

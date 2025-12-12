@@ -1,0 +1,54 @@
+# System Package Requirements (Debian/Ubuntu)
+#
+# List all system packages (apt/dpkg) your application needs.
+# Uncomment and add your dependencies below.
+#
+# Note: One package per line, no version specifiers
+
+# Python and Build Tools
+# python3
+# python3-pip
+# python3-venv
+# python3-dev
+# build-essential
+
+# GUI Support
+# python3-tk        # Tkinter GUI support
+# libgtk-3-0        # GTK3 libraries
+# libqt6-dev        # Qt6 development
+
+# Database Systems
+# sqlite3           # SQLite database
+# postgresql        # PostgreSQL database
+# postgresql-client
+# mysql-server
+# mysql-client
+
+# Printing Support
+# cups              # Common UNIX Printing System
+# cups-client
+
+# Image Processing
+# libpng-dev
+# libjpeg-dev
+# libfreetype6-dev
+
+# PDF Tools
+# poppler-utils
+# ghostscript
+
+# Network Tools
+# curl
+# wget
+# openssh-client
+
+# Media Libraries
+# ffmpeg
+# libavcodec-extra
+
+# Development Tools (for development profile)
+# git
+# make
+# cmake
+
+# Add your system dependencies here:
