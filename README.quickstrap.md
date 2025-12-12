@@ -6,7 +6,7 @@ Quickstrap provides a simple, reusable installation system that handles both Pyt
 
 ## Features
 
-- **Profile-Based Installation** - Define multiple installation profiles (minimal, standard, full, development)
+- **Profile-Based Installation** - Define multiple installation profiles (e.g. minimal, standard, full, development)
 - **Hybrid Package Management** - Manages both system packages (apt) and Python packages (pip)
 - **Virtual Environment** - Automatic venv creation and management
 - **Feature Detection** - Applications can detect which features were installed
@@ -19,6 +19,7 @@ Quickstrap provides a simple, reusable installation system that handles both Pyt
 ### For New Projects
 
 1. **Clone Quickstrap into your project:**
+
    ```bash
    git clone https://github.com/Stefan-Schmidbauer/quickstrap.git my-project
    cd my-project
@@ -26,18 +27,20 @@ Quickstrap provides a simple, reusable installation system that handles both Pyt
 
 2. **Configure your application:**
    Edit `quickstrap/installation_profiles.ini`:
+
    - Set your app name, config directory, and start command
    - Define your features
    - Uncomment and customize profiles as needed
 
 3. **Add your dependencies:**
+
    - Edit `quickstrap/requirements_python.txt` - add your Python packages
    - Edit `quickstrap/requirements_system.txt` - add your system packages
 
 4. **Add your application code:**
+
    ```bash
-   mkdir src
-   # Create your Python application in src/
+      # Create your Python application
    ```
 
 5. **Install and run:**
@@ -49,6 +52,7 @@ Quickstrap provides a simple, reusable installation system that handles both Pyt
 ### For Existing Projects
 
 1. **Add Quickstrap to your project:**
+
    ```bash
    cd your-existing-project
    git clone https://github.com/Stefan-Schmidbauer/quickstrap.git quickstrap-temp
@@ -79,8 +83,8 @@ system_requirements = quickstrap/requirements_system.txt
 name = Full Installation
 description = Complete installation with all features
 features = gui,pdf,database,printing,api
-python_requirements = quickstrap/requirements_python.txt
-system_requirements = quickstrap/requirements_system.txt
+python_requirements = quickstrap/requirements_python_full.txt
+system_requirements = quickstrap/requirements_system_full.txt
 post_install_scripts = quickstrap/scripts/init_database.sh
 ```
 
@@ -130,22 +134,27 @@ post_install_scripts = quickstrap/scripts/init_database.sh,quickstrap/scripts/ch
 ```
 
 Quickstrap includes template scripts in `quickstrap/scripts/`:
+
 - `check_file_exists.sh` - Verify required files exist
 - `init_sqlite_database.sh` - Initialize SQLite database
 - `check_cups_printing.sh` - Verify CUPS printing system
 - `setup_config_directory.sh` - Create config directories
 
-Simply uncomment and customize these templates for your needs.
+Simply uncomment and customize these templates for your needs. Then configure post_install_scripts to start the script.
+
+If the script fails, the installation fails.
 
 ### Environment Variables Available to Scripts
 
 Post-install scripts have access to these environment variables:
+
 - `QUICKSTRAP_APP_NAME` - The application name from metadata
 - `QUICKSTRAP_CONFIG_DIR` - The config directory name from metadata
-- `VIRTUAL_ENV` - Path to the virtual environment
-- `PATH` - Updated to include the venv's bin directory
+- `VIRTUAL_ENV` - Path to the virtual environment (e.g., `/path/to/project/venv`)
+- `PATH` - Automatically updated to include the venv's `bin` directory first. This ensures that when your script calls `python`, `pip`, or any installed Python tools, the versions from the virtual environment are used instead of system versions. You can directly use commands like `python script.py` without specifying the full venv path.
 
 Example usage in a script:
+
 ```bash
 #!/bin/bash
 echo "Setting up $QUICKSTRAP_APP_NAME..."
@@ -156,33 +165,43 @@ mkdir -p "$CONFIG_PATH"
 ## Usage
 
 ### Interactive Installation
+
 ```bash
 ./install.py
 ```
+
 Presents a menu to choose from available profiles.
 
 ### Direct Profile Installation
+
 ```bash
 ./install.py --profile standard
 ```
+
 Installs the specified profile directly.
 
 ### Rebuild Virtual Environment
+
 ```bash
 ./install.py --profile standard --rebuild-venv
 ```
+
 Recreates the virtual environment from scratch.
 
 ### Dry Run
+
 ```bash
 ./install.py --dry-run
 ```
+
 Shows what would be installed without making changes.
 
 ### Start Application
+
 ```bash
 ./start.sh
 ```
+
 Activates the virtual environment and starts your application.
 
 ## Configuration Reference
@@ -191,25 +210,25 @@ Activates the virtual environment and starts your application.
 
 Global application configuration:
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `app_name` | Yes | Display name of your application |
-| `config_dir` | Yes | Directory name under `~/.config/` for storing installation info |
-| `start_command` | Yes | Command to start your application (e.g., `python3 src/main.py`) |
-| `after_install` | No | Message displayed after successful installation |
+| Field           | Required | Description                                                     |
+| --------------- | -------- | --------------------------------------------------------------- |
+| `app_name`      | Yes      | Display name of your application                                |
+| `config_dir`    | Yes      | Directory name under `~/.config/` for storing installation info |
+| `start_command` | Yes      | Command to start your application (e.g., `python3 src/main.py`) |
+| `after_install` | No       | Message displayed after successful installation                 |
 
 ### Profile Section (`[profile:NAME]`)
 
 Installation profile configuration:
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | Yes | Display name of the profile |
-| `description` | Yes | Description of what this profile includes |
-| `features` | Yes | Comma-separated feature list (used by your app for feature detection) |
-| `python_requirements` | Yes | Path to Python packages file (e.g., `quickstrap/requirements_python.txt`) |
-| `system_requirements` | Yes | Path to system packages file (e.g., `quickstrap/requirements_system.txt`) |
-| `post_install_scripts` | No | Comma-separated list of post-install scripts to run |
+| Field                  | Required | Description                                                               |
+| ---------------------- | -------- | ------------------------------------------------------------------------- |
+| `name`                 | Yes      | Display name of the profile                                               |
+| `description`          | Yes      | Description of what this profile includes                                 |
+| `features`             | Yes      | Comma-separated feature list (used by your app for feature detection)     |
+| `python_requirements`  | Yes      | Path to Python packages file (e.g., `quickstrap/requirements_python.txt`) |
+| `system_requirements`  | Yes      | Path to system packages file (e.g., `quickstrap/requirements_system.txt`) |
+| `post_install_scripts` | No       | Comma-separated list of post-install scripts to run                       |
 
 ### Example Configuration
 
@@ -234,11 +253,13 @@ post_install_scripts = quickstrap/scripts/init_database.sh
 **Before using Quickstrap, install these system packages:**
 
 On Debian/Ubuntu:
+
 ```bash
 sudo apt install python3 python3-pip python3-venv
 ```
 
 Required:
+
 - Python 3.6 or higher
 - pip (Python package installer)
 - venv (Virtual environment support)
@@ -273,6 +294,7 @@ your-project/
 ## Why Quickstrap?
 
 Most Python projects use pip and requirements.txt, but many applications also need:
+
 - System dependencies (GUI libraries, printing systems, databases)
 - Different deployment scenarios (minimal vs full installation)
 - Post-install initialization (database setup, config files)
