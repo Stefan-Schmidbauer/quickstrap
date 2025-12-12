@@ -123,6 +123,78 @@ if 'pdf' in features:
 
 The configuration is stored at: `~/.config/{your-config-dir}/installation_profile.ini`
 
+## Pre-Install Scripts
+
+Pre-install scripts run **before** the virtual environment is created and packages are installed. This prevents wasting time installing packages when critical requirements are missing (e.g., GPU drivers for CUDA applications).
+
+Add pre-install scripts to your profile:
+
+```ini
+[profile:cuda]
+name = CUDA Installation
+...
+pre_install_scripts = quickstrap/scripts/check_nvidia_driver.sh
+```
+
+### How Pre-Install Scripts Work
+
+1. **Timing**: Scripts run after system package verification but before venv creation
+2. **Failure Handling**: If a script fails, the user is prompted to continue or abort
+3. **Multiple Scripts**: Comma-separated list, all scripts run in order
+4. **Exit Codes**: Script exit 0 = success, non-zero = failure
+
+### Example: NVIDIA Driver Verification
+
+Quickstrap includes a template for verifying NVIDIA GPU drivers:
+
+`quickstrap/scripts/check_nvidia_driver.sh` - Verify NVIDIA drivers for CUDA applications
+
+Uncomment and customize the template to check for:
+- nvidia-smi availability
+- GPU detection
+- Minimum driver version requirements
+
+**Example script:**
+
+```bash
+#!/bin/bash
+if ! command -v nvidia-smi >/dev/null 2>&1; then
+    echo "Error: NVIDIA driver not found (nvidia-smi not available)"
+    echo ""
+    echo "Install NVIDIA drivers:"
+    echo "  1. Check available versions: apt search nvidia-driver"
+    echo "  2. Install driver: sudo apt install nvidia-driver-XXX"
+    echo "  3. Reboot system"
+    exit 1
+fi
+echo "✓ NVIDIA driver found"
+exit 0
+```
+
+### User Experience
+
+When a pre-install script fails:
+
+```
+Step 2: Pre-Installation Scripts
+ℹ Running pre-install script: quickstrap/scripts/check_nvidia_driver.sh
+Error: NVIDIA driver not found (nvidia-smi not available)
+
+Install NVIDIA drivers:
+  1. Check available versions: apt search nvidia-driver
+  2. Install driver: sudo apt install nvidia-driver-XXX
+  3. Reboot system
+
+✗ Pre-install script failed: quickstrap/scripts/check_nvidia_driver.sh
+
+⚠ Warning: Pre-installation scripts failed
+Continue anyway? [y/N]: _
+```
+
+The user can choose to:
+- Press `N` or `Enter` to abort (recommended)
+- Press `y` to continue despite the failed script
+
 ## Post-Install Scripts
 
 Add custom setup scripts that run after package installation:
@@ -135,10 +207,14 @@ post_install_scripts = quickstrap/scripts/init_database.sh,quickstrap/scripts/ch
 
 Quickstrap includes template scripts in `quickstrap/scripts/`:
 
+**Post-Install Scripts:**
 - `check_file_exists.sh` - Verify required files exist
 - `init_sqlite_database.sh` - Initialize SQLite database
 - `check_cups_printing.sh` - Verify CUPS printing system
 - `setup_config_directory.sh` - Create config directories
+
+**Pre-Install Scripts:**
+- `check_nvidia_driver.sh` - Verify NVIDIA GPU drivers for CUDA
 
 Simply uncomment and customize these templates for your needs. Then configure post_install_scripts to start the script.
 
@@ -221,14 +297,15 @@ Global application configuration:
 
 Installation profile configuration:
 
-| Field                  | Required | Description                                                               |
-| ---------------------- | -------- | ------------------------------------------------------------------------- |
-| `name`                 | Yes      | Display name of the profile                                               |
-| `description`          | Yes      | Description of what this profile includes                                 |
-| `features`             | Yes      | Comma-separated feature list (used by your app for feature detection)     |
-| `python_requirements`  | Yes      | Path to Python packages file (e.g., `quickstrap/requirements_python.txt`) |
-| `system_requirements`  | Yes      | Path to system packages file (e.g., `quickstrap/requirements_system.txt`) |
-| `post_install_scripts` | No       | Comma-separated list of post-install scripts to run                       |
+| Field                  | Required | Description                                                                       |
+| ---------------------- | -------- | --------------------------------------------------------------------------------- |
+| `name`                 | Yes      | Display name of the profile                                                       |
+| `description`          | Yes      | Description of what this profile includes                                         |
+| `features`             | Yes      | Comma-separated feature list (used by your app for feature detection)             |
+| `python_requirements`  | Yes      | Path to Python packages file (e.g., `quickstrap/requirements_python.txt`)         |
+| `system_requirements`  | Yes      | Path to system packages file (e.g., `quickstrap/requirements_system.txt`)         |
+| `pre_install_scripts`  | No       | Comma-separated list of pre-install scripts (run before venv creation)            |
+| `post_install_scripts` | No       | Comma-separated list of post-install scripts (run after package installation)     |
 
 ### Example Configuration
 
@@ -245,6 +322,7 @@ description = Complete installation with all features
 features = gui,pdf,database,printing
 python_requirements = quickstrap/requirements_python.txt
 system_requirements = quickstrap/requirements_system.txt
+pre_install_scripts = quickstrap/scripts/check_nvidia_driver.sh
 post_install_scripts = quickstrap/scripts/init_database.sh
 ```
 
@@ -267,11 +345,12 @@ Required:
 
 **Note:** Quickstrap currently supports Debian/Ubuntu-based systems. The system package checking uses `dpkg` for package verification.
 
-## Project Structure
+## Quickstrap Structure
+
+Example structure:
 
 ```
 your-project/
-├── README.md                          # Your project documentation
 ├── README.quickstrap.md               # Quickstrap documentation (this file)
 ├── install.py                         # Quickstrap installer (stays in root)
 ├── start.sh                           # Quickstrap starter (stays in root)
@@ -284,8 +363,6 @@ your-project/
 │       ├── init_sqlite_database.sh
 │       ├── check_cups_printing.sh
 │       └── setup_config_directory.sh
-├── src/                               # Your application code
-│   └── main.py
 └── venv/                              # Virtual environment (created by install.py)
 ```
 
@@ -301,6 +378,33 @@ Most Python projects use pip and requirements.txt, but many applications also ne
 - Feature detection (conditional imports based on what's installed)
 
 Quickstrap provides all of this in a simple, reusable framework that requires no code changes - just configuration.
+
+## Troubleshooting
+
+### File Permissions
+
+If newly created files (e.g., requirements files, config files) have restricted permissions like `600` (`-rw-------`) instead of the expected `644` (`-rw-r--r--`), this is controlled by your system's umask setting, not by Quickstrap.
+
+**To check your umask:**
+```bash
+umask
+```
+
+**Common values:**
+- `0022` - Creates files as `644` (owner: rw, group/others: r)
+- `0077` - Creates files as `600` (owner: rw, group/others: none)
+
+**To change temporarily:**
+```bash
+umask 0022
+./install.py
+```
+
+**To change permanently:**
+Add to your `~/.bashrc` or `~/.profile`:
+```bash
+umask 0022
+```
 
 ## License
 
