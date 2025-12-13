@@ -150,6 +150,7 @@ Quickstrap includes a template for verifying NVIDIA GPU drivers:
 `quickstrap/scripts/check_nvidia_driver.sh` - Verify NVIDIA drivers for CUDA applications
 
 Uncomment and customize the template to check for:
+
 - nvidia-smi availability
 - GPU detection
 - Minimum driver version requirements
@@ -192,6 +193,7 @@ Continue anyway? [y/N]: _
 ```
 
 The user can choose to:
+
 - Press `N` or `Enter` to abort (recommended)
 - Press `y` to continue despite the failed script
 
@@ -208,12 +210,14 @@ post_install_scripts = quickstrap/scripts/init_database.sh,quickstrap/scripts/ch
 Quickstrap includes template scripts in `quickstrap/scripts/`:
 
 **Post-Install Scripts:**
+
 - `check_file_exists.sh` - Verify required files exist
 - `init_sqlite_database.sh` - Initialize SQLite database
 - `check_cups_printing.sh` - Verify CUPS printing system
 - `setup_config_directory.sh` - Create config directories
 
 **Pre-Install Scripts:**
+
 - `check_nvidia_driver.sh` - Verify NVIDIA GPU drivers for CUDA
 
 Simply uncomment and customize these templates for your needs. Then configure post_install_scripts to start the script.
@@ -259,10 +263,12 @@ Installs the specified profile directly.
 ### Rebuild Virtual Environment
 
 ```bash
+./install.py --rebuild-venv
+# Or with specific profile:
 ./install.py --profile standard --rebuild-venv
 ```
 
-Recreates the virtual environment from scratch.
+Deletes and recreates the virtual environment from scratch.
 
 ### Dry Run
 
@@ -279,6 +285,20 @@ Shows what would be installed without making changes.
 ```
 
 Activates the virtual environment and starts your application.
+
+### Start Application with Parameters
+
+```bash
+./start.sh [arguments...]
+```
+
+All arguments are passed to your application. Examples:
+
+```bash
+./start.sh --help              # Show application help
+./start.sh --config production # Start with production config
+./start.sh process --verbose   # Run command with options
+```
 
 ## Configuration Reference
 
@@ -297,15 +317,15 @@ Global application configuration:
 
 Installation profile configuration:
 
-| Field                  | Required | Description                                                                       |
-| ---------------------- | -------- | --------------------------------------------------------------------------------- |
-| `name`                 | Yes      | Display name of the profile                                                       |
-| `description`          | Yes      | Description of what this profile includes                                         |
-| `features`             | Yes      | Comma-separated feature list (used by your app for feature detection)             |
-| `python_requirements`  | Yes      | Path to Python packages file (e.g., `quickstrap/requirements_python.txt`)         |
-| `system_requirements`  | Yes      | Path to system packages file (e.g., `quickstrap/requirements_system.txt`)         |
-| `pre_install_scripts`  | No       | Comma-separated list of pre-install scripts (run before venv creation)            |
-| `post_install_scripts` | No       | Comma-separated list of post-install scripts (run after package installation)     |
+| Field                  | Required | Description                                                                   |
+| ---------------------- | -------- | ----------------------------------------------------------------------------- |
+| `name`                 | Yes      | Display name of the profile                                                   |
+| `description`          | Yes      | Description of what this profile includes                                     |
+| `features`             | Yes      | Comma-separated feature list (used by your app for feature detection)         |
+| `python_requirements`  | Yes      | Path to Python packages file (e.g., `quickstrap/requirements_python.txt`)     |
+| `system_requirements`  | Yes      | Path to system packages file (e.g., `quickstrap/requirements_system.txt`)     |
+| `pre_install_scripts`  | No       | Comma-separated list of pre-install scripts (run before venv creation)        |
+| `post_install_scripts` | No       | Comma-separated list of post-install scripts (run after package installation) |
 
 ### Example Configuration
 
@@ -381,30 +401,45 @@ Quickstrap provides all of this in a simple, reusable framework that requires no
 
 ## Troubleshooting
 
-### File Permissions
+### Scripts Not Executable
 
-If newly created files (e.g., requirements files, config files) have restricted permissions like `600` (`-rw-------`) instead of the expected `644` (`-rw-r--r--`), this is controlled by your system's umask setting, not by Quickstrap.
-
-**To check your umask:**
 ```bash
-umask
+chmod +x install.py start.sh
+chmod +x quickstrap/scripts/*.sh
 ```
 
-**Common values:**
-- `0022` - Creates files as `644` (owner: rw, group/others: r)
-- `0077` - Creates files as `600` (owner: rw, group/others: none)
+### Virtual Environment Issues
 
-**To change temporarily:**
 ```bash
-umask 0022
+# Rebuild the virtual environment
+./install.py --rebuild-venv
+```
+
+### Missing System Packages
+
+```bash
+sudo apt install <package-name>
 ./install.py
 ```
 
-**To change permanently:**
-Add to your `~/.bashrc` or `~/.profile`:
+## FAQ
+
+### Supported Platforms
+
+Quickstrap is designed for **Debian/Ubuntu-based Linux systems** (uses `apt`/`dpkg`).
+
+### Adding Python Packages
+
+Edit `quickstrap/requirements_python.txt` and rebuild:
+
 ```bash
-umask 0022
+./install.py --rebuild-venv
 ```
+
+### Pre-Install vs Post-Install Scripts
+
+- **Pre-install**: Run before venv creation (e.g., check GPU drivers)
+- **Post-install**: Run after packages installed (e.g., init database)
 
 ## License
 
@@ -414,4 +449,4 @@ Copyright (c) 2025 Stefan Schmidbauer
 
 ## Contributing
 
-Contributions are welcome! Feel free to open issues or submit pull requests to improve Quickstrap.
+Contributions welcome! Open issues or submit pull requests on GitHub.
