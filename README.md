@@ -51,6 +51,10 @@ Quickstrap provides a simple, reusable installation system that handles both Pyt
    ./start.sh
    ```
 
+![Interactive Installation](quickstrap/quickstrap_i12.png)
+
+The interactive installation process guides users through profile selection and automatically verifies system requirements.
+
 ### For Existing Projects
 
 1. **Add Quickstrap to your project:**
