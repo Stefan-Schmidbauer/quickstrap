@@ -23,6 +23,8 @@ Quickstrap provides a simple, reusable installation system that handles both Pyt
    ```bash
    git clone https://github.com/Stefan-Schmidbauer/quickstrap.git my-project
    cd my-project
+   # Rename Quickstrap README to make room for your project's README
+   mv README.md README.quickstrap.md
    ```
 
 2. **Configure your application:**
@@ -58,6 +60,7 @@ Quickstrap provides a simple, reusable installation system that handles both Pyt
    git clone https://github.com/Stefan-Schmidbauer/quickstrap.git quickstrap-temp
    cp quickstrap-temp/install.py .
    cp quickstrap-temp/start.sh .
+   cp quickstrap-temp/README.md README.quickstrap.md  # Keep Quickstrap docs as reference
    cp -r quickstrap-temp/quickstrap .
    rm -rf quickstrap-temp
    ```
