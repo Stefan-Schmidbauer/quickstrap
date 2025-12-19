@@ -38,6 +38,7 @@ install.log
 # data/
 # config/local.ini
 # *.db
+doc/
 
 # Blog articles (not part of the framework)
 blog/

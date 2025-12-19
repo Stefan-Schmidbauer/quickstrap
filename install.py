@@ -202,6 +202,97 @@ def setup_venv(force: bool = False) -> Path:
     return venv_path
 
 
+def check_package_updates(venv_path: Path, requirements_file: str) -> Dict[str, str]:
+    """Check for available package updates.
+
+    Args:
+        venv_path: Path to virtual environment
+        requirements_file: Path to requirements file
+
+    Returns:
+        Dict mapping package names to available versions
+    """
+    if not Path(requirements_file).exists():
+        print_error(f"Requirements file not found: {requirements_file}")
+        return {}
+
+    pip_exe = venv_path / 'bin' / 'pip'
+
+    if not pip_exe.exists():
+        print_error(f"pip not found at {pip_exe}")
+        return {}
+
+    print_info("Checking for package updates...")
+
+    # Get list of outdated packages
+    result = subprocess.run(
+        [str(pip_exe), 'list', '--outdated', '--format=json'],
+        capture_output=True,
+        text=True
+    )
+
+    if result.returncode != 0:
+        print_error("Failed to check for updates")
+        return {}
+
+    try:
+        import json
+        outdated = json.loads(result.stdout)
+        return {pkg['name']: pkg['latest_version'] for pkg in outdated}
+    except:
+        return {}
+
+
+def update_python_packages(venv_path: Path, requirements_file: str) -> bool:
+    """Update Python packages from requirements file.
+
+    Args:
+        venv_path: Path to virtual environment
+        requirements_file: Path to requirements file
+
+    Returns:
+        True if successful
+    """
+    if not Path(requirements_file).exists():
+        print_error(f"Requirements file not found: {requirements_file}")
+        return False
+
+    pip_exe = venv_path / 'bin' / 'pip'
+
+    if not pip_exe.exists():
+        print_error(f"pip not found at {pip_exe}")
+        print_error("Virtual environment may be corrupted")
+        print_info("Try running with --rebuild-venv flag to recreate it")
+        return False
+
+    print_info(f"Updating Python packages from {requirements_file}...")
+    print_info("This may take several minutes...")
+
+    # Upgrade packages
+    result = subprocess.run(
+        [str(pip_exe), 'install', '--upgrade', '-r', requirements_file],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True
+    )
+
+    # Write full output to log
+    with open('install.log', 'a') as f:
+        f.write(f"\n{'=' * 70}\n")
+        f.write(f"Update log: {datetime.now().isoformat()}\n")
+        f.write(f"Requirements: {requirements_file}\n")
+        f.write(f"{'=' * 70}\n")
+        f.write(result.stdout)
+
+    if result.returncode != 0:
+        print_error("Failed to update Python packages")
+        print_info("Check install.log for details")
+        return False
+
+    print_success("Python packages updated successfully")
+    return True
+
+
 def install_python_packages(venv_path: Path, requirements_file: str) -> bool:
     """Install Python packages from requirements file.
 
@@ -445,6 +536,9 @@ Examples:
   ./install.py --rebuild-venv               # Rebuild venv, then interactive menu
   ./install.py --profile {list(profiles.keys())[0] if profiles else 'profile'} --rebuild-venv # Rebuild venv for specific profile
   ./install.py --dry-run                    # Show what would be installed
+  ./install.py --validate                   # Validate configuration
+  ./install.py --check-update-python        # Check for Python package updates
+  ./install.py --update-python              # Update Python packages
         """
     )
     parser.add_argument(
@@ -462,8 +556,195 @@ Examples:
         action='store_true',
         help='Show what would be installed without making changes'
     )
+    parser.add_argument(
+        '--validate',
+        action='store_true',
+        help='Validate profile configuration without installing'
+    )
+    parser.add_argument(
+        '--check-update-python',
+        action='store_true',
+        help='Check for available Python package updates'
+    )
+    parser.add_argument(
+        '--update-python',
+        action='store_true',
+        help='Update Python packages in existing virtual environment'
+    )
 
     args = parser.parse_args()
+
+    # Validate mode - check all profiles and exit
+    if args.validate:
+        print_header(f"{app_name} Configuration Validation")
+
+        all_valid = True
+
+        for profile_name, profile in profiles.items():
+            print_info(f"Validating profile: {profile_name}")
+
+            # Check required fields
+            required_fields = ['name', 'description', 'features', 'python_requirements', 'system_requirements']
+            missing_fields = [f for f in required_fields if f not in profile or not profile[f].strip()]
+
+            if missing_fields:
+                print_error(f"  Missing required fields: {', '.join(missing_fields)}")
+                all_valid = False
+            else:
+                print_success(f"  Required fields: OK")
+
+            # Validate file references
+            missing_files = validate_profile_files(profile)
+            if missing_files:
+                print_error(f"  Missing files:")
+                for missing_file in missing_files:
+                    print(f"    - {missing_file}")
+                all_valid = False
+            else:
+                print_success(f"  File references: OK")
+
+            # Check script executability
+            scripts_to_check = []
+
+            scripts_pre = profile.get('pre_install_scripts', '').strip()
+            if scripts_pre:
+                scripts_to_check.extend([(s.strip(), 'pre_install') for s in scripts_pre.split(',') if s.strip()])
+
+            scripts_post = profile.get('post_install_scripts', '').strip()
+            if scripts_post:
+                scripts_to_check.extend([(s.strip(), 'post_install') for s in scripts_post.split(',') if s.strip()])
+
+            non_executable = []
+            for script_path, script_type in scripts_to_check:
+                if Path(script_path).exists() and not os.access(script_path, os.X_OK):
+                    non_executable.append(f"{script_path} ({script_type})")
+
+            if non_executable:
+                print_warning(f"  Non-executable scripts:")
+                for script in non_executable:
+                    print(f"    - {script}")
+                print_info(f"    Fix with: chmod +x <script>")
+            else:
+                if scripts_to_check:
+                    print_success(f"  Script executability: OK")
+
+            print()
+
+        # Check metadata
+        print_info("Validating metadata")
+        required_metadata = ['app_name', 'config_dir', 'start_command']
+        missing_metadata = [f for f in required_metadata if f not in metadata or not metadata[f].strip()]
+
+        if missing_metadata:
+            print_error(f"  Missing required metadata: {', '.join(missing_metadata)}")
+            all_valid = False
+        else:
+            print_success(f"  Metadata: OK")
+
+        print()
+
+        if all_valid:
+            print_header("Validation Successful!")
+            print_success("All profiles are properly configured")
+        else:
+            print_header("Validation Failed!")
+            print_error("Please fix the errors above")
+            sys.exit(1)
+
+        return
+
+    # Check Python packages mode
+    if args.check_update_python:
+        print_header(f"{app_name} Update Check")
+
+        # Check if venv exists
+        venv_path = Path('venv')
+        if not venv_path.exists():
+            print_error("Virtual environment not found")
+            print_info("Run ./install.py first to install the application")
+            sys.exit(1)
+
+        # Determine which profile is installed
+        config_dir = Path.home() / '.config' / config_dir_name
+        config_file = config_dir / 'installation_profile.ini'
+
+        if not config_file.exists():
+            print_error("Installation profile not found")
+            print_info("Cannot determine which profile is installed")
+            print_info("Run ./install.py to install a profile")
+            sys.exit(1)
+
+        # Read installed profile
+        config = ConfigParser()
+        config.read(config_file)
+        installed_profile_name = config.get('installation', 'profile', fallback=None)
+
+        if not installed_profile_name or installed_profile_name not in profiles:
+            print_error(f"Installed profile '{installed_profile_name}' not found in configuration")
+            sys.exit(1)
+
+        profile = profiles[installed_profile_name]
+        print_info(f"Installed profile: {profile['name']}")
+
+        # Check for updates
+        updates = check_package_updates(venv_path, profile['python_requirements'])
+
+        if not updates:
+            print_success("All packages are up to date!")
+        else:
+            print_warning(f"Found {len(updates)} package(s) with available updates:")
+            print()
+            for pkg_name, new_version in sorted(updates.items()):
+                print(f"  • {pkg_name} → {new_version}")
+            print()
+            print_info("Run './install.py --update-python' to update packages")
+
+        return
+
+    # Update mode
+    if args.update_python:
+        # Determine profile to update
+        config_dir = Path.home() / '.config' / config_dir_name
+        config_file = config_dir / 'installation_profile.ini'
+
+        if not config_file.exists():
+            print_error("Installation profile not found")
+            print_info("Cannot determine which profile is installed")
+            print_info("Run ./install.py to install a profile")
+            sys.exit(1)
+
+        # Read installed profile
+        config = ConfigParser()
+        config.read(config_file)
+        installed_profile_name = config.get('installation', 'profile', fallback=None)
+
+        if not installed_profile_name or installed_profile_name not in profiles:
+            print_error(f"Installed profile '{installed_profile_name}' not found in configuration")
+            sys.exit(1)
+
+        profile = profiles[installed_profile_name]
+
+        print_header(f"{app_name} Package Update")
+        print_info(f"Profile: {profile['name']}")
+
+        venv_path = Path('venv')
+        if not venv_path.exists():
+            print_error("Virtual environment not found")
+            print_info("Run ./install.py first to install the application")
+            sys.exit(1)
+
+        # Update packages
+        success = update_python_packages(venv_path, profile['python_requirements'])
+
+        if success:
+            print()
+            print_header("Update Complete!")
+            print_success("Python packages updated successfully")
+        else:
+            print_error("Update failed")
+            sys.exit(1)
+
+        return
 
     # Print header
     print_header(f"{app_name} Installation")

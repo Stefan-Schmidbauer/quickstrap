@@ -216,18 +216,22 @@ post_install_scripts = quickstrap/scripts/init_database.sh,quickstrap/scripts/ch
 
 Quickstrap includes template scripts in `quickstrap/scripts/`:
 
-**Post-Install Scripts:**
+**Pre-Install Scripts** (run before venv creation):
 
-- `check_file_exists.sh` - Verify required files exist
+- `check_nvidia_driver.sh` - Verify NVIDIA GPU drivers for CUDA applications
+- `check_docker.sh` - Verify Docker and Docker Compose availability
+- `check_port_available.sh` - Check if required ports are free for web applications
+- `check_python_version.sh` - Verify Python version meets requirements
+
+**Post-Install Scripts** (run after package installation):
+
 - `init_sqlite_database.sh` - Initialize SQLite database
-- `check_cups_printing.sh` - Verify CUPS printing system
 - `setup_config_directory.sh` - Create config directories
+- `setup_desktop_entry.sh` - Create .desktop file for desktop integration
+- `check_file_exists.sh` - Verify required files exist
+- `check_cups_printing.sh` - Verify CUPS printing system
 
-**Pre-Install Scripts:**
-
-- `check_nvidia_driver.sh` - Verify NVIDIA GPU drivers for CUDA
-
-Simply uncomment and customize these templates for your needs. Then configure post_install_scripts to start the script.
+Simply uncomment and customize these templates for your needs. All templates include extensive examples showing common use cases.
 
 If the script fails, the installation fails.
 
@@ -285,6 +289,39 @@ Deletes and recreates the virtual environment from scratch.
 
 Shows what would be installed without making changes.
 
+### Validate Configuration
+
+```bash
+./install.py --validate
+```
+
+Validates your profile configuration without installing anything. Checks:
+
+- Required fields in all profiles
+- All referenced files exist
+- Script executability
+- Metadata completeness
+
+Useful before committing configuration changes or when setting up a new project.
+
+### Update Python Packages
+
+Check for Python package updates:
+
+```bash
+./install.py --check-update-python
+```
+
+Shows which Python packages have newer versions available.
+
+Update Python packages:
+
+```bash
+./install.py --update-python
+```
+
+Updates all Python packages in the virtual environment to match requirements.
+
 ### Start Application
 
 ```bash
@@ -306,6 +343,28 @@ All arguments are passed to your application. Examples:
 ./start.sh --config production # Start with production config
 ./start.sh process --verbose   # Run command with options
 ```
+
+### Developer Mode
+
+For development sessions, activate the virtual environment in your current shell:
+
+```bash
+source quickstrap/activate.sh
+```
+
+This provides:
+
+- Activated virtual environment
+- Quickstrap environment variables (`QUICKSTRAP_APP_NAME`, `QUICKSTRAP_CONFIG_DIR`)
+- Updated `PATH` with venv binaries
+- Persistent activation (use `deactivate` to exit)
+
+This is useful when you want to:
+
+- Run Python commands directly without `./start.sh`
+- Use development tools (pytest, mypy, black, etc.)
+- Debug or explore code interactively
+- Work with multiple terminal sessions
 
 ## Configuration Reference
 
@@ -385,11 +444,17 @@ your-project/
 │   ├── installation_profiles.ini      # Your profiles configuration
 │   ├── requirements_python.txt        # Your Python dependencies
 │   ├── requirements_system.txt        # Your system dependencies
-│   └── scripts/                       # Post-install scripts (templates)
-│       ├── check_file_exists.sh
-│       ├── init_sqlite_database.sh
-│       ├── check_cups_printing.sh
-│       └── setup_config_directory.sh
+│   ├── activate.sh                    # Developer mode activation script
+│   └── scripts/                       # Installation scripts (templates)
+│       ├── check_nvidia_driver.sh     # Pre: GPU/CUDA check
+│       ├── check_docker.sh            # Pre: Docker availability check
+│       ├── check_port_available.sh    # Pre: Port availability check
+│       ├── check_python_version.sh    # Pre: Python version check
+│       ├── init_sqlite_database.sh    # Post: Database initialization
+│       ├── setup_config_directory.sh  # Post: Config directory setup
+│       ├── setup_desktop_entry.sh     # Post: Desktop integration
+│       ├── check_file_exists.sh       # Post: File verification
+│       └── check_cups_printing.sh     # Post: Printing system check
 └── venv/                              # Virtual environment (created by install.py)
 ```
 
