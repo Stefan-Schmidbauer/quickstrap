@@ -1,0 +1,105 @@
+# -*- mode: python ; coding: utf-8 -*-
+#
+# PyInstaller Spec File Template
+#
+# This is a template for advanced PyInstaller configuration.
+# Copy this file to quickstrap/pyinstaller.spec and customize it for your needs.
+#
+# Usage:
+#   1. Copy: cp quickstrap/pyinstaller.spec.template quickstrap/pyinstaller.spec
+#   2. Customize the settings below
+#   3. Run: ./quickstrap/scripts/build_windows_exe.sh
+#
+# The build script will automatically use pyinstaller.spec if it exists.
+
+# CONFIGURATION - Customize these values for your application
+# ==============================================================
+
+# Main script (entry point of your application)
+MAIN_SCRIPT = 'main.py'  # e.g., 'src/main.py', 'app.py'
+
+# Application name (name of the generated EXE)
+APP_NAME = 'MyApp'
+
+# Application icon (Windows .ico file)
+# Set to None if you don't have an icon
+ICON_FILE = None  # e.g., 'app.ico'
+
+# Additional data files/directories to include
+# Format: [(source, destination), ...]
+DATAS = [
+    # ('config', 'config'),           # Include config directory
+    # ('templates', 'templates'),     # Include templates directory
+    # ('static', 'static'),           # Include static files
+    # ('data/*.json', 'data'),        # Include specific files
+]
+
+# Hidden imports (modules that PyInstaller doesn't detect automatically)
+HIDDEN_IMPORTS = [
+    # 'module_name',
+    # 'package.submodule',
+]
+
+# Binary files to include (DLLs, .so files, etc.)
+BINARIES = [
+    # ('path/to/library.dll', '.'),
+]
+
+# Exclude modules to reduce EXE size
+EXCLUDES = [
+    # 'tkinter',      # Exclude if not using GUI
+    # 'matplotlib',   # Exclude if not using plotting
+    # 'pytest',       # Exclude testing frameworks
+]
+
+# Console mode
+# True = Show console window (for CLI applications)
+# False = No console window (for GUI applications)
+CONSOLE = True
+
+# ==============================================================
+# Advanced PyInstaller Configuration
+# ==============================================================
+
+block_cipher = None
+
+a = Analysis(
+    [MAIN_SCRIPT],
+    pathex=[],
+    binaries=BINARIES,
+    datas=DATAS,
+    hiddenimports=HIDDEN_IMPORTS,
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=EXCLUDES,
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
+)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    [],
+    name=APP_NAME,
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,  # Compress EXE with UPX (smaller file size)
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=CONSOLE,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=ICON_FILE,
+)

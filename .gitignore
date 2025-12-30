@@ -17,8 +17,17 @@ dist/
 build/
 *.egg
 
+# PyInstaller
+*.spec
+!quickstrap/pyinstaller.spec.template
+
 # Installation logs
 install.log
+
+# Environment variables (sensitive data)
+.env
+.env.*
+!.env.example
 
 # IDE
 .vscode/

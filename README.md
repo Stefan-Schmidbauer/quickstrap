@@ -11,6 +11,7 @@ Quickstrap provides a simple, reusable installation system that handles both Pyt
 - **Virtual Environment** - Automatic venv creation and management
 - **Feature Detection** - Applications can detect which features were installed
 - **Post-Install Hooks** - Run custom scripts after installation
+- **Windows EXE Builder** - Create standalone Windows executables with PyInstaller
 - **Template-Driven** - No code changes needed, just configure INI files
 - **Copy-and-Go** - Clone, configure, and you're ready to deploy
 
@@ -365,6 +366,102 @@ This is useful when you want to:
 - Use development tools (pytest, mypy, black, etc.)
 - Debug or explore code interactively
 - Work with multiple terminal sessions
+
+## Building Windows EXE
+
+Quickstrap includes built-in support for creating standalone Windows executables using PyInstaller. This allows you to distribute your Quickstrap-based application to Windows users without requiring them to install Python.
+
+**Note**: This feature is for your application project that uses Quickstrap, not for Quickstrap itself.
+
+### Quick Build
+
+After installing your application with `./install.py`:
+
+```bash
+./quickstrap/scripts/build_windows_exe.sh
+```
+
+This will:
+1. Automatically install PyInstaller if needed
+2. Read your application configuration
+3. Create a standalone EXE in the `dist/` directory
+
+### Advanced Configuration
+
+For more control over the build process, create a custom PyInstaller spec file:
+
+```bash
+# Copy the template
+cp quickstrap/pyinstaller.spec.template quickstrap/pyinstaller.spec
+
+# Edit the configuration
+nano quickstrap/pyinstaller.spec
+```
+
+Customize these settings in `pyinstaller.spec`:
+
+```python
+# Main script (entry point)
+MAIN_SCRIPT = 'src/main.py'
+
+# Application name
+APP_NAME = 'MyApp'
+
+# Icon file (optional)
+ICON_FILE = 'app.ico'
+
+# Additional data files to include
+DATAS = [
+    ('config', 'config'),
+    ('templates', 'templates'),
+]
+
+# Hide console window for GUI apps
+CONSOLE = False  # Set to True for CLI apps
+```
+
+Then run the build script - it will automatically use your custom spec file.
+
+### Common Build Scenarios
+
+**GUI Application** (no console window):
+```python
+CONSOLE = False
+```
+
+**Include config files**:
+```python
+DATAS = [('config', 'config')]
+```
+
+**Hidden imports** (modules PyInstaller misses):
+```python
+HIDDEN_IMPORTS = ['package.module']
+```
+
+**Reduce EXE size** (exclude unused modules):
+```python
+EXCLUDES = ['tkinter', 'matplotlib']
+```
+
+### Distribution
+
+The generated EXE in `dist/` is fully standalone:
+- No Python installation required on target system
+- All dependencies bundled
+- Can be distributed as a single file
+
+Simply share the EXE file with Windows users!
+
+### Troubleshooting
+
+**Build fails**: Check that your main script path in `installation_profiles.ini` is correct.
+
+**Missing modules**: Add them to `HIDDEN_IMPORTS` in `pyinstaller.spec`.
+
+**Large EXE size**: Add unused modules to `EXCLUDES` in `pyinstaller.spec`.
+
+**Runtime errors**: Check for dynamic imports or file path issues in your code.
 
 ## Configuration Reference
 
