@@ -34,6 +34,26 @@ echo -e "${BLUE}  Windows EXE Build Script${NC}"
 echo -e "${BLUE}======================================${NC}"
 echo
 
+# Check if we're on Windows
+if [[ "$OSTYPE" != "msys" && "$OSTYPE" != "cygwin" && ! -n "$WSLENV" ]]; then
+    echo -e "${YELLOW}⚠ Warning: You are running this on Linux/Mac${NC}"
+    echo
+    echo "PyInstaller builds for the current platform only."
+    echo "This will create a Linux/Mac binary, NOT a Windows EXE."
+    echo
+    echo "To create a Windows EXE:"
+    echo "  1. Run this script on Windows"
+    echo "  2. Or use: .\\quickstrap\\scripts\\build_windows_exe.ps1"
+    echo
+    read -p "Continue anyway? [y/N]: " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Build cancelled."
+        exit 0
+    fi
+    echo
+fi
+
 # Find the script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -148,18 +168,24 @@ else
 fi
 
 # Check if build was successful
-if [ -f "dist/$APP_NAME.exe" ] || [ -f "dist/$(basename $MAIN_SCRIPT .py).exe" ]; then
+if [ -f "dist/$APP_NAME.exe" ] || [ -f "dist/$APP_NAME" ] || [ -f "dist/$(basename $MAIN_SCRIPT .py).exe" ] || [ -f "dist/$(basename $MAIN_SCRIPT .py)" ]; then
     echo
     echo -e "${BLUE}======================================${NC}"
     echo -e "${GREEN}✓ Build successful!${NC}"
     echo -e "${BLUE}======================================${NC}"
     echo
-    echo "EXE location: dist/"
+    echo "Build output: dist/"
     echo
-    ls -lh dist/*.exe
+    ls -lh dist/
     echo
-    echo "You can now distribute the EXE to Windows users."
-    echo "No Python installation required on their systems."
+
+    if [ -f "dist/$APP_NAME.exe" ] || [ -f "dist/$(basename $MAIN_SCRIPT .py).exe" ]; then
+        echo "You can now distribute the EXE to Windows users."
+        echo "No Python installation required on their systems."
+    else
+        echo -e "${YELLOW}Note: This is a Linux/Mac binary, not a Windows EXE.${NC}"
+        echo "Run this script on Windows to create a .exe file."
+    fi
 else
     echo
     echo -e "${RED}✗ Build failed${NC}"

@@ -375,16 +375,24 @@ Quickstrap includes built-in support for creating standalone Windows executables
 
 ### Quick Build
 
-After installing your application with `./install.py`:
+**On Windows** (PowerShell or CMD):
+
+```powershell
+.\quickstrap\scripts\build_windows_exe.ps1
+```
+
+**On Linux/Mac** (for testing, but creates Linux/Mac binary):
 
 ```bash
 ./quickstrap/scripts/build_windows_exe.sh
 ```
 
+**Important**: PyInstaller builds for the platform it runs on. To create a Windows `.exe`, you must run the script on Windows.
+
 This will:
 1. Automatically install PyInstaller if needed
 2. Read your application configuration
-3. Create a standalone EXE in the `dist/` directory
+3. Create a standalone executable in the `dist/` directory
 
 ### Advanced Configuration
 

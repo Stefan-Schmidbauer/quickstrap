@@ -10,26 +10,34 @@ While Quickstrap is designed for Linux development, you can easily create standa
 
 ### Prerequisites
 
-- Linux development environment with Quickstrap installed
-- Your application working correctly with `./install.py` and `./start.sh`
+- Windows system (PyInstaller builds for the platform it runs on)
+- Python 3.6 or later installed
+- Your application with Quickstrap integrated
 
 ### Build Process
 
 1. **Install your application**:
-   ```bash
-   ./install.py
+   ```powershell
+   python install.py
    ```
 
 2. **Build the Windows EXE**:
+   ```powershell
+   .\quickstrap\scripts\build_windows_exe.ps1
+   ```
+
+   Or using Git Bash/WSL:
    ```bash
    ./quickstrap/scripts/build_windows_exe.sh
    ```
 
 3. **Find your EXE**:
-   The executable will be in the `dist/` directory:
-   ```bash
-   ls -lh dist/*.exe
+   The executable will be in the `dist\` directory:
+   ```powershell
+   dir dist\*.exe
    ```
+
+**Note**: You cannot create a Windows EXE from Linux. PyInstaller only builds for the current platform.
 
 ### Customizing the Build
 
