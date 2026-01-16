@@ -56,6 +56,28 @@ def print_info(text: str):
     print(f"{Colors.OKCYAN}ℹ {text}{Colors.ENDC}")
 
 
+def get_venv_paths(venv_path: Path) -> Tuple[Path, Path]:
+    """Get platform-appropriate paths for venv executables.
+
+    On Windows, venv uses 'Scripts' folder with .exe extensions.
+    On Linux/macOS, venv uses 'bin' folder without extensions.
+
+    Args:
+        venv_path: Path to the virtual environment directory
+
+    Returns:
+        Tuple of (pip_path, python_path)
+    """
+    if sys.platform == 'win32':
+        pip_exe = venv_path / 'Scripts' / 'pip.exe'
+        python_exe = venv_path / 'Scripts' / 'python.exe'
+    else:
+        pip_exe = venv_path / 'bin' / 'pip'
+        python_exe = venv_path / 'bin' / 'python'
+
+    return pip_exe, python_exe
+
+
 def read_profiles(profile_file: str = 'quickstrap/installation_profiles.ini') -> Tuple[Dict, Dict]:
     """Read and parse installation profiles.
 
