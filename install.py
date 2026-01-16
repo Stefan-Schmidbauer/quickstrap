@@ -78,6 +78,29 @@ def get_venv_paths(venv_path: Path) -> Tuple[Path, Path]:
     return pip_exe, python_exe
 
 
+def get_config_dir(config_dir_name: str) -> Path:
+    """Get platform-appropriate configuration directory.
+
+    On Windows: uses APPDATA environment variable (fallback to home directory).
+    On Linux/macOS: uses ~/.config/
+
+    Args:
+        config_dir_name: Name of the config directory (e.g., 'myapp')
+
+    Returns:
+        Path to the configuration directory
+    """
+    if sys.platform == 'win32':
+        # Use APPDATA on Windows, fallback to home directory
+        appdata = os.environ.get('APPDATA')
+        if appdata:
+            return Path(appdata) / config_dir_name
+        else:
+            return Path.home() / config_dir_name
+    else:
+        return Path.home() / '.config' / config_dir_name
+
+
 def read_profiles(profile_file: str = 'quickstrap/installation_profiles.ini') -> Tuple[Dict, Dict]:
     """Read and parse installation profiles.
 
@@ -381,7 +404,10 @@ def run_pre_install_scripts(scripts: str, profile_name: str) -> bool:
 
 
 def write_installation_config(profile_name: str, features: str, config_dir_name: str) -> Path:
-    """Write installation config to ~/.config/{config_dir_name}/
+    """Write installation config to platform-appropriate config directory.
+
+    On Windows: %APPDATA%/{config_dir_name}/
+    On Linux/macOS: ~/.config/{config_dir_name}/
 
     Args:
         profile_name: Name of installed profile
@@ -391,7 +417,7 @@ def write_installation_config(profile_name: str, features: str, config_dir_name:
     Returns:
         Path to the written config file
     """
-    config_dir = Path.home() / '.config' / config_dir_name
+    config_dir = get_config_dir(config_dir_name)
     config_dir.mkdir(parents=True, exist_ok=True)
 
     config_file = config_dir / 'installation_profile.ini'
