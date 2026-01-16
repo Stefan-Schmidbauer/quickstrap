@@ -56,6 +56,51 @@ def print_info(text: str):
     print(f"{Colors.OKCYAN}ℹ {text}{Colors.ENDC}")
 
 
+def get_venv_paths(venv_path: Path) -> Tuple[Path, Path]:
+    """Get platform-appropriate paths for venv executables.
+
+    On Windows, venv uses 'Scripts' folder with .exe extensions.
+    On Linux/macOS, venv uses 'bin' folder without extensions.
+
+    Args:
+        venv_path: Path to the virtual environment directory
+
+    Returns:
+        Tuple of (pip_path, python_path)
+    """
+    if sys.platform == 'win32':
+        pip_exe = venv_path / 'Scripts' / 'pip.exe'
+        python_exe = venv_path / 'Scripts' / 'python.exe'
+    else:
+        pip_exe = venv_path / 'bin' / 'pip'
+        python_exe = venv_path / 'bin' / 'python'
+
+    return pip_exe, python_exe
+
+
+def get_config_dir(config_dir_name: str) -> Path:
+    """Get platform-appropriate configuration directory.
+
+    On Windows: uses APPDATA environment variable (fallback to home directory).
+    On Linux/macOS: uses ~/.config/
+
+    Args:
+        config_dir_name: Name of the config directory (e.g., 'myapp')
+
+    Returns:
+        Path to the configuration directory
+    """
+    if sys.platform == 'win32':
+        # Use APPDATA on Windows, fallback to home directory
+        appdata = os.environ.get('APPDATA')
+        if appdata:
+            return Path(appdata) / config_dir_name
+        else:
+            return Path.home() / config_dir_name
+    else:
+        return Path.home() / '.config' / config_dir_name
+
+
 def read_profiles(profile_file: str = 'quickstrap/installation_profiles.ini') -> Tuple[Dict, Dict]:
     """Read and parse installation profiles.
 
@@ -88,11 +133,17 @@ def read_profiles(profile_file: str = 'quickstrap/installation_profiles.ini') ->
 def check_system_packages(package_file: str) -> Tuple[List[str], List[str]]:
     """Check which system packages are installed.
 
+    On Windows, system package checking is skipped since dpkg is not available.
+    The function returns empty lists and prints guidance about manual verification.
+
+    On Linux, uses dpkg-query to check package status.
+
     Args:
         package_file: Path to file containing package names (one per line)
 
     Returns:
         Tuple of (installed_packages, missing_packages)
+        On Windows: returns ([], []) since check is skipped
     """
     if not Path(package_file).exists():
         print_error(f"Package list file not found: {package_file}")
@@ -108,6 +159,17 @@ def check_system_packages(package_file: str) -> Tuple[List[str], List[str]]:
                 packages.append(line)
 
     if not packages:
+        return [], []
+
+    # On Windows, skip system package check (dpkg not available)
+    if sys.platform == 'win32':
+        print_warning("System package checking is not available on Windows")
+        print_info(f"The following {len(packages)} system packages are required on Linux:")
+        for pkg in packages:
+            print(f"    - {pkg}")
+        print_info("On Windows, please ensure equivalent dependencies are installed manually")
+        print_info("Skipping system package check...")
+        # Return empty lists to indicate check was skipped (not failed)
         return [], []
 
     print_info(f"Checking {len(packages)} system packages...")
@@ -173,8 +235,7 @@ def setup_venv(force: bool = False) -> Path:
             sys.exit(1)
     else:
         # Verify the venv is valid by checking for critical files
-        pip_exe = venv_path / 'bin' / 'pip'
-        python_exe = venv_path / 'bin' / 'python'
+        pip_exe, python_exe = get_venv_paths(venv_path)
 
         if not pip_exe.exists() or not python_exe.exists():
             print_warning("Virtual environment exists but appears corrupted")
@@ -216,7 +277,7 @@ def install_python_packages(venv_path: Path, requirements_file: str) -> bool:
         print_error(f"Requirements file not found: {requirements_file}")
         return False
 
-    pip_exe = venv_path / 'bin' / 'pip'
+    pip_exe, _ = get_venv_paths(venv_path)
 
     # Verify pip executable exists
     if not pip_exe.exists():
@@ -295,8 +356,37 @@ def validate_profile_files(profile: Dict) -> List[str]:
     return missing
 
 
+def run_bash_script(script_path: str, env: Optional[Dict] = None) -> Optional[subprocess.CompletedProcess]:
+    """Run a bash script with cross-platform handling.
+
+    On Windows, bash scripts are skipped since bash is typically not available.
+    On Linux/macOS, scripts are executed with bash.
+
+    Args:
+        script_path: Path to the bash script to run
+        env: Optional environment variables for the script
+
+    Returns:
+        CompletedProcess result on Linux/macOS, None on Windows (script skipped)
+    """
+    if sys.platform == 'win32':
+        # On Windows, bash is not typically available
+        return None
+
+    return subprocess.run(
+        ['bash', script_path],
+        env=env,
+        capture_output=True,
+        text=True
+    )
+
+
 def run_pre_install_scripts(scripts: str, profile_name: str) -> bool:
     """Run pre-installation scripts.
+
+    On Windows, bash scripts are skipped with a warning since bash is
+    typically not available. The function returns True to allow
+    installation to continue.
 
     Args:
         scripts: Comma-separated list of scripts to run
@@ -312,6 +402,17 @@ def run_pre_install_scripts(scripts: str, profile_name: str) -> bool:
 
     print_header("Step 2: Pre-Installation Scripts")
 
+    # On Windows, skip bash scripts with a warning
+    if sys.platform == 'win32':
+        print_warning("Bash script execution is not available on Windows")
+        print_info(f"The following {len(script_list)} pre-install script(s) will be skipped:")
+        for script_path in script_list:
+            print(f"    - {script_path}")
+        print_info("On Windows, you may need to manually perform any pre-installation steps")
+        print_info("Skipping pre-install scripts...")
+        print_success("Pre-install scripts skipped on Windows")
+        return True
+
     failed_scripts = []
 
     for script_path in script_list:
@@ -321,11 +422,7 @@ def run_pre_install_scripts(scripts: str, profile_name: str) -> bool:
 
         print_info(f"Running pre-install script: {script_path}")
 
-        result = subprocess.run(
-            ['bash', script_path],
-            capture_output=True,
-            text=True
-        )
+        result = run_bash_script(script_path)
 
         # Display output
         if result.stdout:
@@ -360,7 +457,10 @@ def run_pre_install_scripts(scripts: str, profile_name: str) -> bool:
 
 
 def write_installation_config(profile_name: str, features: str, config_dir_name: str) -> Path:
-    """Write installation config to ~/.config/{config_dir_name}/
+    """Write installation config to platform-appropriate config directory.
+
+    On Windows: %APPDATA%/{config_dir_name}/
+    On Linux/macOS: ~/.config/{config_dir_name}/
 
     Args:
         profile_name: Name of installed profile
@@ -370,7 +470,7 @@ def write_installation_config(profile_name: str, features: str, config_dir_name:
     Returns:
         Path to the written config file
     """
-    config_dir = Path.home() / '.config' / config_dir_name
+    config_dir = get_config_dir(config_dir_name)
     config_dir.mkdir(parents=True, exist_ok=True)
 
     config_file = config_dir / 'installation_profile.ini'
@@ -445,6 +545,7 @@ Examples:
   ./install.py --rebuild-venv               # Rebuild venv, then interactive menu
   ./install.py --profile {list(profiles.keys())[0] if profiles else 'profile'} --rebuild-venv # Rebuild venv for specific profile
   ./install.py --dry-run                    # Show what would be installed
+  ./install.py --validate                   # Validate all profiles
         """
     )
     parser.add_argument(
@@ -462,11 +563,41 @@ Examples:
         action='store_true',
         help='Show what would be installed without making changes'
     )
+    parser.add_argument(
+        '--validate',
+        action='store_true',
+        help='Validate all profiles and their referenced files without installing'
+    )
 
     args = parser.parse_args()
 
     # Print header
     print_header(f"{app_name} Installation")
+
+    # Validation mode - validate all profiles without installing
+    if args.validate:
+        print_header("Validation Mode")
+        print_info(f"Validating {len(profiles)} profile(s)...")
+
+        all_valid = True
+        for profile_name, profile_config in profiles.items():
+            print_info(f"Validating profile: {profile_name}")
+            missing_files = validate_profile_files(profile_config)
+            if missing_files:
+                all_valid = False
+                print_error(f"  Profile '{profile_name}' has missing files:")
+                for missing_file in missing_files:
+                    print(f"    - {missing_file}")
+            else:
+                print_success(f"  Profile '{profile_name}' is valid")
+
+        print()
+        if all_valid:
+            print_success("All profiles validated successfully")
+            sys.exit(0)
+        else:
+            print_error("Validation failed - some profiles have missing files")
+            sys.exit(1)
 
     # Show loaded profiles
     print_info("Loading installation profiles...")
@@ -510,11 +641,13 @@ Examples:
         print(f"Python packages file: {profile['python_requirements']}")
         print(f"Features: {profile['features']}")
 
-        # Check system packages
+        # Check system packages (on Windows, this prints info and returns empty lists)
         _, missing_system = check_system_packages(profile['system_requirements'])
         if missing_system:
             print(f"\nMissing system packages: {', '.join(missing_system)}")
             print(f"Would need to run: sudo apt install {' '.join(missing_system)}")
+        elif sys.platform != 'win32':
+            print("\nAll system packages are installed")
 
         print("\nDry run complete")
         return
@@ -523,20 +656,26 @@ Examples:
     print_header("Step 1: System Package Check")
     installed, missing = check_system_packages(profile['system_requirements'])
 
-    print_success(f"{len(installed)} system packages already installed")
+    # On Windows, the check was skipped (function prints its own messages)
+    # On Linux, show results and handle missing packages
+    if sys.platform != 'win32':
+        print_success(f"{len(installed)} system packages already installed")
 
-    if missing:
-        print_error(f"{len(missing)} system packages missing:")
-        for pkg in missing:
-            print(f"  - {pkg}")
+        if missing:
+            print_error(f"{len(missing)} system packages missing:")
+            for pkg in missing:
+                print(f"  - {pkg}")
 
-        print()
-        print_info("Please install missing system packages with:")
-        print(f"\n  {Colors.BOLD}sudo apt install {' '.join(missing)}{Colors.ENDC}\n")
-        print_info("Then re-run this installer.")
-        sys.exit(1)
+            print()
+            print_info("Please install missing system packages with:")
+            print(f"\n  {Colors.BOLD}sudo apt install {' '.join(missing)}{Colors.ENDC}\n")
+            print_info("Then re-run this installer.")
+            sys.exit(1)
 
-    print_success("All system packages are installed")
+        print_success("All system packages are installed")
+    else:
+        # Windows: check was skipped, print confirmation and continue
+        print_success("System package check skipped on Windows")
 
     # Run pre-install scripts if defined
     scripts_pre = profile.get('pre_install_scripts', '').strip()
@@ -566,38 +705,46 @@ Examples:
         print_header(f"Step {4 + step_offset}: Post-Installation Scripts")
         script_list = [s.strip() for s in scripts.split(',') if s.strip()]
 
-        for script_path in script_list:
-            if not Path(script_path).exists():
-                print_warning(f"Post-install script not found: {script_path}")
-                continue
+        # On Windows, skip bash scripts with a warning
+        if sys.platform == 'win32':
+            print_warning("Bash script execution is not available on Windows")
+            print_info(f"The following {len(script_list)} post-install script(s) will be skipped:")
+            for script_path in script_list:
+                print(f"    - {script_path}")
+            print_info("On Windows, you may need to manually perform any post-installation steps")
+            print_info("Skipping post-install scripts...")
+            print_success("Post-install scripts skipped on Windows")
+        else:
+            for script_path in script_list:
+                if not Path(script_path).exists():
+                    print_warning(f"Post-install script not found: {script_path}")
+                    continue
 
-            print_info(f"Running post-install script: {script_path}")
+                print_info(f"Running post-install script: {script_path}")
 
-            # Prepare environment with venv activation and Quickstrap metadata
-            env = os.environ.copy()
-            env['VIRTUAL_ENV'] = str(venv_path)
-            env['PATH'] = f"{venv_path / 'bin'}:{env['PATH']}"
-            env['QUICKSTRAP_APP_NAME'] = app_name
-            env['QUICKSTRAP_CONFIG_DIR'] = config_dir_name
+                # Prepare environment with venv activation and Quickstrap metadata
+                env = os.environ.copy()
+                env['VIRTUAL_ENV'] = str(venv_path)
+                # Use pip_exe.parent to get the Scripts/bin directory path
+                pip_exe, _ = get_venv_paths(venv_path)
+                path_sep = ';' if sys.platform == 'win32' else ':'
+                env['PATH'] = f"{pip_exe.parent}{path_sep}{env['PATH']}"
+                env['QUICKSTRAP_APP_NAME'] = app_name
+                env['QUICKSTRAP_CONFIG_DIR'] = config_dir_name
 
-            result = subprocess.run(
-                ['bash', script_path],
-                env=env,
-                capture_output=True,
-                text=True
-            )
+                result = run_bash_script(script_path, env=env)
 
-            # Display output
-            if result.stdout:
-                print(result.stdout)
-            if result.stderr:
-                print(result.stderr, file=sys.stderr)
+                # Display output
+                if result.stdout:
+                    print(result.stdout)
+                if result.stderr:
+                    print(result.stderr, file=sys.stderr)
 
-            if result.returncode != 0:
-                print_error(f"Post-install script failed: {script_path}")
-                sys.exit(1)
+                if result.returncode != 0:
+                    print_error(f"Post-install script failed: {script_path}")
+                    sys.exit(1)
 
-        print_success("All post-install scripts completed")
+            print_success("All post-install scripts completed")
 
     # Write installation config
     # Calculate final step number: 1 (sys) + pre_scripts + venv + python + post_scripts + config
