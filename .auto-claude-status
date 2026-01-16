@@ -3,7 +3,7 @@
   "spec": "001-quickstrap-is-for-linux-but-i-want-it-to-be-able-t",
   "state": "building",
   "subtasks": {
-    "completed": 1,
+    "completed": 3,
     "total": 9,
     "in_progress": 1,
     "failed": 0
@@ -18,8 +18,8 @@
     "max": 1
   },
   "session": {
-    "number": 2,
+    "number": 4,
     "started_at": "2026-01-16T15:59:22.425090"
   },
-  "last_update": "2026-01-16T16:00:49.907952"
+  "last_update": "2026-01-16T16:03:54.990556"
 }

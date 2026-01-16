@@ -133,11 +133,17 @@ def read_profiles(profile_file: str = 'quickstrap/installation_profiles.ini') ->
 def check_system_packages(package_file: str) -> Tuple[List[str], List[str]]:
     """Check which system packages are installed.
 
+    On Windows, system package checking is skipped since dpkg is not available.
+    The function returns empty lists and prints guidance about manual verification.
+
+    On Linux, uses dpkg-query to check package status.
+
     Args:
         package_file: Path to file containing package names (one per line)
 
     Returns:
         Tuple of (installed_packages, missing_packages)
+        On Windows: returns ([], []) since check is skipped
     """
     if not Path(package_file).exists():
         print_error(f"Package list file not found: {package_file}")
@@ -153,6 +159,17 @@ def check_system_packages(package_file: str) -> Tuple[List[str], List[str]]:
                 packages.append(line)
 
     if not packages:
+        return [], []
+
+    # On Windows, skip system package check (dpkg not available)
+    if sys.platform == 'win32':
+        print_warning("System package checking is not available on Windows")
+        print_info(f"The following {len(packages)} system packages are required on Linux:")
+        for pkg in packages:
+            print(f"    - {pkg}")
+        print_info("On Windows, please ensure equivalent dependencies are installed manually")
+        print_info("Skipping system package check...")
+        # Return empty lists to indicate check was skipped (not failed)
         return [], []
 
     print_info(f"Checking {len(packages)} system packages...")
@@ -557,11 +574,13 @@ Examples:
         print(f"Python packages file: {profile['python_requirements']}")
         print(f"Features: {profile['features']}")
 
-        # Check system packages
+        # Check system packages (on Windows, this prints info and returns empty lists)
         _, missing_system = check_system_packages(profile['system_requirements'])
         if missing_system:
             print(f"\nMissing system packages: {', '.join(missing_system)}")
             print(f"Would need to run: sudo apt install {' '.join(missing_system)}")
+        elif sys.platform != 'win32':
+            print("\nAll system packages are installed")
 
         print("\nDry run complete")
         return
@@ -570,20 +589,26 @@ Examples:
     print_header("Step 1: System Package Check")
     installed, missing = check_system_packages(profile['system_requirements'])
 
-    print_success(f"{len(installed)} system packages already installed")
+    # On Windows, the check was skipped (function prints its own messages)
+    # On Linux, show results and handle missing packages
+    if sys.platform != 'win32':
+        print_success(f"{len(installed)} system packages already installed")
 
-    if missing:
-        print_error(f"{len(missing)} system packages missing:")
-        for pkg in missing:
-            print(f"  - {pkg}")
+        if missing:
+            print_error(f"{len(missing)} system packages missing:")
+            for pkg in missing:
+                print(f"  - {pkg}")
 
-        print()
-        print_info("Please install missing system packages with:")
-        print(f"\n  {Colors.BOLD}sudo apt install {' '.join(missing)}{Colors.ENDC}\n")
-        print_info("Then re-run this installer.")
-        sys.exit(1)
+            print()
+            print_info("Please install missing system packages with:")
+            print(f"\n  {Colors.BOLD}sudo apt install {' '.join(missing)}{Colors.ENDC}\n")
+            print_info("Then re-run this installer.")
+            sys.exit(1)
 
-    print_success("All system packages are installed")
+        print_success("All system packages are installed")
+    else:
+        # Windows: check was skipped, print confirmation and continue
+        print_success("System package check skipped on Windows")
 
     # Run pre-install scripts if defined
     scripts_pre = profile.get('pre_install_scripts', '').strip()
