@@ -41,3 +41,6 @@ install.log
 
 # Blog articles (not part of the framework)
 blog/
+
+# Auto Claude data directory
+.auto-claude/

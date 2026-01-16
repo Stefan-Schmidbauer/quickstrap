@@ -195,8 +195,7 @@ def setup_venv(force: bool = False) -> Path:
             sys.exit(1)
     else:
         # Verify the venv is valid by checking for critical files
-        pip_exe = venv_path / 'bin' / 'pip'
-        python_exe = venv_path / 'bin' / 'python'
+        pip_exe, python_exe = get_venv_paths(venv_path)
 
         if not pip_exe.exists() or not python_exe.exists():
             print_warning("Virtual environment exists but appears corrupted")
@@ -238,7 +237,7 @@ def install_python_packages(venv_path: Path, requirements_file: str) -> bool:
         print_error(f"Requirements file not found: {requirements_file}")
         return False
 
-    pip_exe = venv_path / 'bin' / 'pip'
+    pip_exe, _ = get_venv_paths(venv_path)
 
     # Verify pip executable exists
     if not pip_exe.exists():
@@ -598,7 +597,10 @@ Examples:
             # Prepare environment with venv activation and Quickstrap metadata
             env = os.environ.copy()
             env['VIRTUAL_ENV'] = str(venv_path)
-            env['PATH'] = f"{venv_path / 'bin'}:{env['PATH']}"
+            # Use pip_exe.parent to get the Scripts/bin directory path
+            pip_exe, _ = get_venv_paths(venv_path)
+            path_sep = ';' if sys.platform == 'win32' else ':'
+            env['PATH'] = f"{pip_exe.parent}{path_sep}{env['PATH']}"
             env['QUICKSTRAP_APP_NAME'] = app_name
             env['QUICKSTRAP_CONFIG_DIR'] = config_dir_name
 
