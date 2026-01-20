@@ -54,10 +54,10 @@ Quickstrap provides a simple, reusable installation system that handles both Pyt
    ./start.sh
    ```
 
-   **Windows (PowerShell):**
-   ```powershell
+   **Windows:**
+   ```cmd
    python install.py
-   .\start.ps1
+   start.bat
    ```
 
 ![Interactive Installation](quickstrap/quickstrap_i12.png)
@@ -370,7 +370,7 @@ Updates all Python packages in the virtual environment to match requirements.
 
 **Windows:**
 ```powershell
-.\start.ps1
+start.bat
 ```
 
 Activates the virtual environment and starts your application.
@@ -384,7 +384,7 @@ Activates the virtual environment and starts your application.
 
 **Windows:**
 ```powershell
-.\start.ps1 [arguments...]
+start.bat [arguments...]
 ```
 
 All arguments are passed to your application. Examples:
@@ -398,9 +398,9 @@ All arguments are passed to your application. Examples:
 
 **Windows:**
 ```powershell
-.\start.ps1 --help              # Show application help
-.\start.ps1 --config production # Start with production config
-.\start.ps1 process --verbose   # Run command with options
+start.bat --help              # Show application help
+start.bat --config production # Start with production config
+start.bat process --verbose   # Run command with options
 ```
 
 ### Developer Mode (Activate Virtual Environment)
@@ -627,7 +627,8 @@ your-project/
 ├── README.quickstrap.md               # Quickstrap documentation (this file)
 ├── install.py                         # Quickstrap installer (cross-platform)
 ├── start.sh                           # Linux starter script
-├── start.ps1                          # Windows starter script (PowerShell)
+├── start.bat                          # Windows starter script (calls start.ps1)
+├── start.ps1                          # Windows PowerShell script (internal)
 ├── quickstrap/                        # Quickstrap configuration directory
 │   ├── installation_profiles.ini      # Your profiles configuration
 │   ├── requirements_python.txt        # Your Python dependencies
@@ -647,7 +648,7 @@ your-project/
 └── venv/                              # Virtual environment (created by install.py)
 ```
 
-**Note:** Quickstrap keeps these items in your project root: `install.py`, `start.sh` (Linux), `start.ps1` (Windows), and optionally `README.quickstrap.md`. All other files are in the `quickstrap/` subdirectory to minimize conflicts with your project.
+**Note:** Quickstrap keeps these items in your project root: `install.py`, `start.sh` (Linux), `start.bat` and `start.ps1` (Windows), and optionally `README.quickstrap.md`. All other files are in the `quickstrap/` subdirectory to minimize conflicts with your project.
 
 ## Why Quickstrap?
 
@@ -685,7 +686,9 @@ sudo apt install <package-name>
 
 ### Windows: PowerShell Execution Policy Error
 
-If you see "running scripts is disabled on this system":
+Use `start.bat` instead of `start.ps1` - it bypasses the execution policy automatically.
+
+If you still need to run PowerShell scripts directly:
 
 ```powershell
 # Run as Administrator
