@@ -19,14 +19,45 @@ from typing import List, Tuple, Dict, Optional
 
 class Colors:
     """ANSI color codes for terminal output"""
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
+    # Check if we're on Windows and if ANSI is supported
+    _use_colors = True
+
+    if sys.platform == 'win32':
+        # Try to enable ANSI support on Windows 10+
+        try:
+            import ctypes
+            kernel32 = ctypes.windll.kernel32
+            # Enable VIRTUAL_TERMINAL_PROCESSING for stdout
+            STD_OUTPUT_HANDLE = -11
+            ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+            handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
+            mode = ctypes.c_ulong()
+            if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+                kernel32.SetConsoleMode(handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+            else:
+                _use_colors = False
+        except Exception:
+            _use_colors = False
+
+    if _use_colors:
+        HEADER = '\033[95m'
+        OKBLUE = '\033[94m'
+        OKCYAN = '\033[96m'
+        OKGREEN = '\033[92m'
+        WARNING = '\033[93m'
+        FAIL = '\033[91m'
+        ENDC = '\033[0m'
+        BOLD = '\033[1m'
+    else:
+        # No colors on unsupported terminals
+        HEADER = ''
+        OKBLUE = ''
+        OKCYAN = ''
+        OKGREEN = ''
+        WARNING = ''
+        FAIL = ''
+        ENDC = ''
+        BOLD = ''
 
 
 def print_header(text: str):
@@ -38,22 +69,22 @@ def print_header(text: str):
 
 def print_success(text: str):
     """Print success message"""
-    print(f"{Colors.OKGREEN}✓ {text}{Colors.ENDC}")
+    print(f"{Colors.OKGREEN}[OK] {text}{Colors.ENDC}")
 
 
 def print_error(text: str):
     """Print error message"""
-    print(f"{Colors.FAIL}✗ {text}{Colors.ENDC}")
+    print(f"{Colors.FAIL}[X] {text}{Colors.ENDC}")
 
 
 def print_warning(text: str):
     """Print warning message"""
-    print(f"{Colors.WARNING}⚠ {text}{Colors.ENDC}")
+    print(f"{Colors.WARNING}[!] {text}{Colors.ENDC}")
 
 
 def print_info(text: str):
     """Print info message"""
-    print(f"{Colors.OKCYAN}ℹ {text}{Colors.ENDC}")
+    print(f"{Colors.OKCYAN}[i] {text}{Colors.ENDC}")
 
 
 def get_venv_paths(venv_path: Path) -> Tuple[Path, Path]:
@@ -81,7 +112,7 @@ def get_venv_paths(venv_path: Path) -> Tuple[Path, Path]:
 def get_config_dir(config_dir_name: str) -> Path:
     """Get platform-appropriate configuration directory.
 
-    On Windows: uses APPDATA environment variable (fallback to home directory).
+    On Windows: uses LOCALAPPDATA environment variable (fallback to home directory).
     On Linux/macOS: uses ~/.config/
 
     Args:
@@ -91,14 +122,84 @@ def get_config_dir(config_dir_name: str) -> Path:
         Path to the configuration directory
     """
     if sys.platform == 'win32':
-        # Use APPDATA on Windows, fallback to home directory
-        appdata = os.environ.get('APPDATA')
+        # Use LOCALAPPDATA on Windows (local to machine, better for quickstrap)
+        appdata = os.environ.get('LOCALAPPDATA')
         if appdata:
             return Path(appdata) / config_dir_name
         else:
             return Path.home() / config_dir_name
     else:
         return Path.home() / '.config' / config_dir_name
+
+
+def get_platform_name() -> str:
+    """Get normalized platform name.
+
+    Returns:
+        'linux' on Linux/macOS, 'windows' on Windows
+    """
+    return 'windows' if sys.platform == 'win32' else 'linux'
+
+
+def resolve_platform_config(config: Dict, key: str, required: bool = False) -> Optional[str]:
+    """Resolve platform-specific or generic config value.
+
+    Tries platform-specific key first (e.g., 'start_command_linux' or 'start_command_windows'),
+    then falls back to generic key (e.g., 'start_command').
+
+    Args:
+        config: Configuration dictionary (metadata or profile)
+        key: Base key name (without platform suffix)
+        required: If True, print error if key not found
+
+    Returns:
+        Resolved value or None if not found
+    """
+    platform = get_platform_name()
+
+    # Try platform-specific key first
+    platform_key = f"{key}_{platform}"
+    if platform_key in config and config[platform_key].strip():
+        return config[platform_key].strip()
+
+    # Fall back to generic key
+    if key in config and config[key].strip():
+        return config[key].strip()
+
+    # Not found
+    if required:
+        print_error(f"Required configuration key '{key}' not found (tried '{platform_key}' and '{key}')")
+
+    return None
+
+
+def validate_platform_support(metadata: Dict) -> bool:
+    """Validate that current platform is supported by this application.
+
+    Args:
+        metadata: Metadata dictionary from installation_profiles.ini
+
+    Returns:
+        True if current platform is supported, False otherwise
+    """
+    supported = metadata.get('supported_platforms', 'linux,windows').strip()
+
+    # Parse supported platforms
+    supported_list = [p.strip().lower() for p in supported.split(',') if p.strip()]
+
+    # Get current platform
+    current_platform = get_platform_name()
+
+    # Check if current platform is supported
+    if current_platform not in supported_list:
+        platform_display = 'Windows' if current_platform == 'windows' else 'Linux'
+        print_error(f"This application does not support {platform_display}")
+        print()
+        print_info(f"Supported platforms: {', '.join(supported_list)}")
+        print()
+        return False
+
+    return True
 
 
 def read_profiles(profile_file: str = 'quickstrap/installation_profiles.ini') -> Tuple[Dict, Dict]:
@@ -130,20 +231,70 @@ def read_profiles(profile_file: str = 'quickstrap/installation_profiles.ini') ->
     return profiles, metadata
 
 
-def check_system_packages(package_file: str) -> Tuple[List[str], List[str]]:
-    """Check which system packages are installed.
+def run_windows_system_check(script_path: str) -> Tuple[List[str], List[str]]:
+    """Run PowerShell system check script on Windows.
 
-    On Windows, system package checking is skipped since dpkg is not available.
-    The function returns empty lists and prints guidance about manual verification.
+    Executes a PowerShell script that checks for required system software
+    and returns JSON with installed/missing lists.
 
-    On Linux, uses dpkg-query to check package status.
+    Args:
+        script_path: Path to PowerShell script
+
+    Returns:
+        Tuple of (installed_software, missing_software)
+    """
+    if not Path(script_path).exists():
+        print_error(f"System check script not found: {script_path}")
+        return [], []
+
+    print_info(f"Running Windows system check: {script_path}")
+
+    try:
+        # Run PowerShell script with ExecutionPolicy Bypass
+        result = subprocess.run(
+            ['powershell', '-ExecutionPolicy', 'Bypass', '-File', script_path],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        if result.returncode != 0:
+            print_error("System check script failed")
+            if result.stderr:
+                print_error(f"Error: {result.stderr}")
+            return [], []
+
+        # Parse JSON output
+        import json
+        try:
+            data = json.loads(result.stdout.strip())
+            installed = data.get('installed', [])
+            missing = data.get('missing', [])
+            return installed, missing
+        except json.JSONDecodeError as e:
+            print_error(f"Failed to parse system check output: {e}")
+            print_info("Script output:")
+            print(result.stdout)
+            return [], []
+
+    except subprocess.TimeoutExpired:
+        print_error("System check script timed out (>30s)")
+        return [], []
+    except Exception as e:
+        print_error(f"Failed to run system check script: {e}")
+        return [], []
+
+
+def check_system_packages_linux(package_file: str) -> Tuple[List[str], List[str]]:
+    """Check which Linux system packages (APT/DEB) are installed.
+
+    Uses dpkg-query to check package status on Debian/Ubuntu systems.
 
     Args:
         package_file: Path to file containing package names (one per line)
 
     Returns:
         Tuple of (installed_packages, missing_packages)
-        On Windows: returns ([], []) since check is skipped
     """
     if not Path(package_file).exists():
         print_error(f"Package list file not found: {package_file}")
@@ -161,18 +312,7 @@ def check_system_packages(package_file: str) -> Tuple[List[str], List[str]]:
     if not packages:
         return [], []
 
-    # On Windows, skip system package check (dpkg not available)
-    if sys.platform == 'win32':
-        print_warning("System package checking is not available on Windows")
-        print_info(f"The following {len(packages)} system packages are required on Linux:")
-        for pkg in packages:
-            print(f"    - {pkg}")
-        print_info("On Windows, please ensure equivalent dependencies are installed manually")
-        print_info("Skipping system package check...")
-        # Return empty lists to indicate check was skipped (not failed)
-        return [], []
-
-    print_info(f"Checking {len(packages)} system packages...")
+    print_info(f"Checking {len(packages)} APT/DEB system packages...")
 
     # Check all packages at once for better performance
     result = subprocess.run(
@@ -198,6 +338,37 @@ def check_system_packages(package_file: str) -> Tuple[List[str], List[str]]:
             missing.append(package)
 
     return installed, missing
+
+
+def check_system_requirements(profile: Dict) -> Tuple[List[str], List[str]]:
+    """Check system requirements based on platform.
+
+    On Linux: Check APT/DEB packages from system_requirements_linux file
+    On Windows: Run PowerShell check script from system_check_script_windows
+
+    Args:
+        profile: Profile configuration dictionary
+
+    Returns:
+        Tuple of (installed, missing)
+    """
+    platform = get_platform_name()
+
+    if platform == 'linux':
+        # Linux: check APT packages
+        req_file = resolve_platform_config(profile, 'system_requirements')
+        if not req_file:
+            print_warning("No system requirements file specified for Linux")
+            return [], []
+        return check_system_packages_linux(req_file)
+    else:
+        # Windows: run PowerShell check script
+        check_script = resolve_platform_config(profile, 'system_check_script')
+        if not check_script:
+            print_warning("No system check script specified for Windows")
+            print_info("Skipping system requirements check")
+            return [], []
+        return run_windows_system_check(check_script)
 
 
 def setup_venv(force: bool = False) -> Path:
@@ -364,6 +535,10 @@ def install_python_packages(venv_path: Path, requirements_file: str) -> bool:
     Returns:
         True if successful
     """
+    if not requirements_file:
+        print_error("No Python requirements file specified for this platform")
+        return False
+
     if not Path(requirements_file).exists():
         print_error(f"Requirements file not found: {requirements_file}")
         return False
@@ -377,36 +552,53 @@ def install_python_packages(venv_path: Path, requirements_file: str) -> bool:
         print_info("Try running with --rebuild-venv flag to recreate it")
         return False
 
-    print_info(f"Installing Python packages from {requirements_file}...")
+    platform_display = "Windows" if get_platform_name() == 'windows' else "Linux"
+    print_info(f"Installing Python packages for {platform_display} from {requirements_file}...")
     print_info("This may take several minutes...")
 
-    # Run pip with progress
-    result = subprocess.run(
-        [str(pip_exe), 'install', '-r', requirements_file],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True
-    )
+    try:
+        # Run pip with progress
+        result = subprocess.run(
+            [str(pip_exe), 'install', '-r', requirements_file],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True
+        )
 
-    # Write full output to log
-    with open('install.log', 'a') as f:
-        f.write(f"\n{'=' * 70}\n")
-        f.write(f"Installation log: {datetime.now().isoformat()}\n")
-        f.write(f"Requirements: {requirements_file}\n")
-        f.write(f"{'=' * 70}\n")
-        f.write(result.stdout)
+        # Write full output to log
+        output = result.stdout or ""
+        with open('install.log', 'a', encoding='utf-8') as f:
+            f.write(f"\n{'=' * 70}\n")
+            f.write(f"Installation log: {datetime.now().isoformat()}\n")
+            f.write(f"Requirements: {requirements_file}\n")
+            f.write(f"{'=' * 70}\n")
+            f.write(output)
 
-    if result.returncode != 0:
-        print_error("Failed to install Python packages")
-        print_info("Check install.log for details")
+        if result.returncode != 0:
+            print_error("Failed to install Python packages")
+            print_info("Check install.log for details")
+            # Also print last few lines of output for immediate feedback
+            if output:
+                lines = output.strip().split('\n')
+                print_error("Last output lines:")
+                for line in lines[-10:]:
+                    print(f"  {line}")
+            return False
+
+        print_success("Python packages installed successfully")
+        return True
+
+    except Exception as e:
+        print_error(f"Failed to run pip: {e}")
+        print_info(f"pip path: {pip_exe}")
+        print_info(f"requirements: {requirements_file}")
         return False
-
-    print_success("Python packages installed successfully")
-    return True
 
 
 def validate_profile_files(profile: Dict) -> List[str]:
     """Validate that all files referenced in the profile exist.
+
+    Checks both platform-specific and generic file references.
 
     Args:
         profile: Profile configuration dict
@@ -416,33 +608,42 @@ def validate_profile_files(profile: Dict) -> List[str]:
     """
     missing = []
 
-    # Check python requirements
-    if 'python_requirements' in profile:
-        req_file = profile['python_requirements']
-        if not Path(req_file).exists():
-            missing.append(f"{req_file} (python_requirements)")
+    # Check python requirements (platform-specific or generic)
+    python_req = resolve_platform_config(profile, 'python_requirements')
+    if python_req and not Path(python_req).exists():
+        missing.append(f"{python_req} (python_requirements)")
+    elif not python_req:
+        # No python requirements found at all
+        platform = get_platform_name()
+        missing.append(f"python_requirements_{platform} or python_requirements (not specified)")
 
-    # Check system requirements
-    if 'system_requirements' in profile:
-        req_file = profile['system_requirements']
-        if not Path(req_file).exists():
-            missing.append(f"{req_file} (system_requirements)")
+    # Check system requirements (platform-specific)
+    platform = get_platform_name()
+    if platform == 'linux':
+        sys_req = resolve_platform_config(profile, 'system_requirements')
+        if sys_req and not Path(sys_req).exists():
+            missing.append(f"{sys_req} (system_requirements_linux)")
+    else:
+        # Windows: check for system check script
+        check_script = resolve_platform_config(profile, 'system_check_script')
+        if check_script and not Path(check_script).exists():
+            missing.append(f"{check_script} (system_check_script_windows)")
 
-    # Check post_install_scripts
-    scripts = profile.get('post_install_scripts', '').strip()
+    # Check post_install_scripts (platform-specific)
+    scripts = resolve_platform_config(profile, 'post_install_scripts')
     if scripts:
         script_list = [s.strip() for s in scripts.split(',') if s.strip()]
         for script_path in script_list:
             if not Path(script_path).exists():
-                missing.append(f"{script_path} (post_install_scripts)")
+                missing.append(f"{script_path} (post_install_scripts_{platform})")
 
-    # Check pre_install_scripts
-    scripts_pre = profile.get('pre_install_scripts', '').strip()
+    # Check pre_install_scripts (platform-specific)
+    scripts_pre = resolve_platform_config(profile, 'pre_install_scripts')
     if scripts_pre:
         script_list = [s.strip() for s in scripts_pre.split(',') if s.strip()]
         for script_path in script_list:
             if not Path(script_path).exists():
-                missing.append(f"{script_path} (pre_install_scripts)")
+                missing.append(f"{script_path} (pre_install_scripts_{platform})")
 
     return missing
 
@@ -621,6 +822,10 @@ def main():
         print_error("No installation profiles found")
         sys.exit(1)
 
+    # Validate platform support
+    if not validate_platform_support(metadata):
+        sys.exit(1)
+
     # Get app name from metadata or use generic name
     app_name = metadata.get('app_name', 'Application')
     config_dir_name = metadata.get('config_dir', 'app')
@@ -683,9 +888,24 @@ Examples:
         for profile_name, profile in profiles.items():
             print_info(f"Validating profile: {profile_name}")
 
-            # Check required fields
-            required_fields = ['name', 'description', 'features', 'python_requirements', 'system_requirements']
+            # Check required fields (platform-aware)
+            required_fields = ['name', 'description', 'features']
             missing_fields = [f for f in required_fields if f not in profile or not profile[f].strip()]
+
+            # Check platform-specific requirements exist
+            python_req = resolve_platform_config(profile, 'python_requirements')
+            if not python_req:
+                missing_fields.append('python_requirements (platform-specific)')
+
+            platform = get_platform_name()
+            if platform == 'linux':
+                sys_req = resolve_platform_config(profile, 'system_requirements')
+                if not sys_req:
+                    missing_fields.append('system_requirements_linux')
+            else:
+                sys_check = resolve_platform_config(profile, 'system_check_script')
+                if not sys_check:
+                    missing_fields.append('system_check_script_windows (optional but recommended)')
 
             if missing_fields:
                 print_error(f"  Missing required fields: {', '.join(missing_fields)}")
@@ -732,8 +952,13 @@ Examples:
 
         # Check metadata
         print_info("Validating metadata")
-        required_metadata = ['app_name', 'config_dir', 'start_command']
+        required_metadata = ['app_name', 'config_dir']
         missing_metadata = [f for f in required_metadata if f not in metadata or not metadata[f].strip()]
+
+        # Check for start_command (platform-specific or generic)
+        start_cmd = resolve_platform_config(metadata, 'start_command')
+        if not start_cmd:
+            missing_metadata.append('start_command (platform-specific)')
 
         if missing_metadata:
             print_error(f"  Missing required metadata: {', '.join(missing_metadata)}")
@@ -786,8 +1011,11 @@ Examples:
         profile = profiles[installed_profile_name]
         print_info(f"Installed profile: {profile['name']}")
 
-        # Check for updates
-        updates = check_package_updates(venv_path, profile['python_requirements'])
+        # Check for updates (platform-specific requirements)
+        python_req = resolve_platform_config(profile, 'python_requirements', required=True)
+        if not python_req:
+            sys.exit(1)
+        updates = check_package_updates(venv_path, python_req)
 
         if not updates:
             print_success("All packages are up to date!")
@@ -833,8 +1061,11 @@ Examples:
             print_info("Run ./install.py first to install the application")
             sys.exit(1)
 
-        # Update packages
-        success = update_python_packages(venv_path, profile['python_requirements'])
+        # Update packages (platform-specific requirements)
+        python_req = resolve_platform_config(profile, 'python_requirements', required=True)
+        if not python_req:
+            sys.exit(1)
+        success = update_python_packages(venv_path, python_req)
 
         if success:
             print()
@@ -912,48 +1143,65 @@ Examples:
     if args.dry_run:
         print_header("Dry Run Mode - No Changes Will Be Made")
         print(f"Profile: {profile_name}")
-        print(f"System packages file: {profile['system_requirements']}")
-        print(f"Python packages file: {profile['python_requirements']}")
+
+        python_req = resolve_platform_config(profile, 'python_requirements')
+        print(f"Python packages file: {python_req}")
+
+        platform = get_platform_name()
+        if platform == 'linux':
+            sys_req = resolve_platform_config(profile, 'system_requirements')
+            print(f"System packages file: {sys_req}")
+        else:
+            sys_check = resolve_platform_config(profile, 'system_check_script')
+            print(f"System check script: {sys_check or '(none)'}")
+
         print(f"Features: {profile['features']}")
 
-        # Check system packages (on Windows, this prints info and returns empty lists)
-        _, missing_system = check_system_packages(profile['system_requirements'])
+        # Check system packages
+        _, missing_system = check_system_requirements(profile)
         if missing_system:
-            print(f"\nMissing system packages: {', '.join(missing_system)}")
-            print(f"Would need to run: sudo apt install {' '.join(missing_system)}")
-        elif sys.platform != 'win32':
-            print("\nAll system packages are installed")
+            if platform == 'linux':
+                print(f"\nMissing system packages: {', '.join(missing_system)}")
+                print(f"Would need to run: sudo apt install {' '.join(missing_system)}")
+            else:
+                print(f"\nMissing system requirements: {', '.join(missing_system)}")
+        else:
+            print("\nAll system requirements are met")
 
         print("\nDry run complete")
         return
 
     # Check system packages
-    print_header("Step 1: System Package Check")
-    installed, missing = check_system_packages(profile['system_requirements'])
+    print_header("Step 1: System Requirements Check")
+    installed, missing = check_system_requirements(profile)
 
-    # On Windows, the check was skipped (function prints its own messages)
-    # On Linux, show results and handle missing packages
-    if sys.platform != 'win32':
-        print_success(f"{len(installed)} system packages already installed")
+    # Show results based on platform
+    platform = get_platform_name()
+    if installed:
+        print_success(f"{len(installed)} system requirement(s) already installed/available")
 
-        if missing:
-            print_error(f"{len(missing)} system packages missing:")
-            for pkg in missing:
-                print(f"  - {pkg}")
+    if missing:
+        print_error(f"{len(missing)} system requirement(s) missing:")
+        for item in missing:
+            print(f"  - {item}")
 
-            print()
+        print()
+        if platform == 'linux':
             print_info("Please install missing system packages with:")
             print(f"\n  {Colors.BOLD}sudo apt install {' '.join(missing)}{Colors.ENDC}\n")
             print_info("Then re-run this installer.")
-            sys.exit(1)
+        else:
+            print_info("Please install missing requirements manually, then re-run this installer.")
+        sys.exit(1)
 
-        print_success("All system packages are installed")
+    if not installed and not missing:
+        # No check was performed (no script/file configured)
+        print_info("No system requirements check configured for this platform")
     else:
-        # Windows: check was skipped, print confirmation and continue
-        print_success("System package check skipped on Windows")
+        print_success("All system requirements are met")
 
-    # Run pre-install scripts if defined
-    scripts_pre = profile.get('pre_install_scripts', '').strip()
+    # Run pre-install scripts if defined (platform-specific)
+    scripts_pre = resolve_platform_config(profile, 'pre_install_scripts')
     if scripts_pre:
         should_continue = run_pre_install_scripts(scripts_pre, profile_name)
         if not should_continue:
@@ -966,60 +1214,67 @@ Examples:
     print_header(f"Step {2 + step_offset}: Virtual Environment Setup")
     venv_path = setup_venv(force=args.rebuild_venv)
 
-    # Install Python packages
+    # Install Python packages (platform-specific)
     print_header(f"Step {3 + step_offset}: Python Package Installation")
-    success = install_python_packages(venv_path, profile['python_requirements'])
+    python_req = resolve_platform_config(profile, 'python_requirements', required=True)
+    success = install_python_packages(venv_path, python_req)
 
     if not success:
         print_error("Installation failed")
         sys.exit(1)
 
-    # Run post-install scripts if defined
-    scripts = profile.get('post_install_scripts', '').strip()
+    # Run post-install scripts if defined (platform-specific)
+    scripts = resolve_platform_config(profile, 'post_install_scripts')
     if scripts:
         print_header(f"Step {4 + step_offset}: Post-Installation Scripts")
         script_list = [s.strip() for s in scripts.split(',') if s.strip()]
 
-        # On Windows, skip bash scripts with a warning
-        if sys.platform == 'win32':
-            print_warning("Bash script execution is not available on Windows")
-            print_info(f"The following {len(script_list)} post-install script(s) will be skipped:")
-            for script_path in script_list:
-                print(f"    - {script_path}")
-            print_info("On Windows, you may need to manually perform any post-installation steps")
-            print_info("Skipping post-install scripts...")
-            print_success("Post-install scripts skipped on Windows")
-        else:
-            for script_path in script_list:
-                if not Path(script_path).exists():
-                    print_warning(f"Post-install script not found: {script_path}")
-                    continue
+        platform = get_platform_name()
+        for script_path in script_list:
+            if not Path(script_path).exists():
+                print_warning(f"Post-install script not found: {script_path}")
+                continue
 
-                print_info(f"Running post-install script: {script_path}")
+            print_info(f"Running post-install script: {script_path}")
 
-                # Prepare environment with venv activation and Quickstrap metadata
-                env = os.environ.copy()
-                env['VIRTUAL_ENV'] = str(venv_path)
-                # Use pip_exe.parent to get the Scripts/bin directory path
-                pip_exe, _ = get_venv_paths(venv_path)
-                path_sep = ';' if sys.platform == 'win32' else ':'
-                env['PATH'] = f"{pip_exe.parent}{path_sep}{env['PATH']}"
-                env['QUICKSTRAP_APP_NAME'] = app_name
-                env['QUICKSTRAP_CONFIG_DIR'] = config_dir_name
+            # Prepare environment with venv activation and Quickstrap metadata
+            env = os.environ.copy()
+            env['VIRTUAL_ENV'] = str(venv_path)
+            pip_exe, _ = get_venv_paths(venv_path)
+            path_sep = ';' if sys.platform == 'win32' else ':'
+            env['PATH'] = f"{pip_exe.parent}{path_sep}{env['PATH']}"
+            env['QUICKSTRAP_APP_NAME'] = app_name
+            env['QUICKSTRAP_CONFIG_DIR'] = config_dir_name
 
-                result = run_bash_script(script_path, env=env)
+            # Run script based on platform
+            if platform == 'windows':
+                # Run PowerShell script
+                result = subprocess.run(
+                    ['powershell', '-ExecutionPolicy', 'Bypass', '-File', script_path],
+                    env=env,
+                    capture_output=True,
+                    text=True
+                )
+            else:
+                # Run Bash script
+                result = subprocess.run(
+                    ['bash', script_path],
+                    env=env,
+                    capture_output=True,
+                    text=True
+                )
 
-                # Display output
-                if result.stdout:
-                    print(result.stdout)
-                if result.stderr:
-                    print(result.stderr, file=sys.stderr)
+            # Display output
+            if result.stdout:
+                print(result.stdout)
+            if result.stderr:
+                print(result.stderr, file=sys.stderr)
 
-                if result.returncode != 0:
-                    print_error(f"Post-install script failed: {script_path}")
-                    sys.exit(1)
+            if result.returncode != 0:
+                print_error(f"Post-install script failed: {script_path}")
+                sys.exit(1)
 
-            print_success("All post-install scripts completed")
+        print_success("All post-install scripts completed")
 
     # Write installation config
     # Calculate final step number: 1 (sys) + pre_scripts + venv + python + post_scripts + config
@@ -1036,9 +1291,10 @@ Examples:
     print_success(f"{app_name} '{profile['name']}' profile installed successfully")
     print()
 
-    # Show after_install message if provided
-    if 'after_install' in metadata:
-        print_info(metadata['after_install'])
+    # Show after_install message if provided (platform-specific)
+    after_install_msg = resolve_platform_config(metadata, 'after_install')
+    if after_install_msg:
+        print_info(after_install_msg)
         print()
 
     print_info("Installation configuration:")
