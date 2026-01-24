@@ -1,0 +1,303 @@
+# Quickstrap Release Build Template
+#
+# This workflow builds releases for multiple platforms and profiles.
+# Customize the matrix entries to match your project's profiles.
+#
+# Usage:
+# 1. Copy this file to your project's .github/workflows/ directory
+# 2. Update APP_NAME, MAIN_SCRIPT, and ICON_FILE
+# 3. Update the matrix entries to match your profiles
+# 4. Push a tag (e.g., git tag v1.0.0 && git push origin v1.0.0)
+#
+# Note: Only profiles you want to release need to be in the matrix.
+# You might have 4 profiles but only release 2 (e.g., basis and cuda).
+
+name: Build Releases
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  # ============================================================================
+  # CUSTOMIZE THESE VALUES FOR YOUR PROJECT
+  # ============================================================================
+  APP_NAME: MyApp
+  MAIN_SCRIPT: main.py
+  ICON_FILE: app.ico  # Windows icon (optional, remove --icon flag if not used)
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # =============================================================================
+  # Windows Builds (EXE)
+  # =============================================================================
+  build-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        # ======================================================================
+        # CUSTOMIZE: Add/remove profiles for Windows releases
+        # You don't need to include all profiles - only those you want to release
+        # ======================================================================
+        include:
+          - profile: standard
+            name: ${{ env.APP_NAME }}-Windows
+            requirements: quickstrap/requirements_python.txt
+            features: gui,database
+          # Example: Add more profiles as needed
+          # - profile: cuda
+          #   name: ${{ env.APP_NAME }}-Windows-CUDA
+          #   requirements: quickstrap/requirements_python_cuda_windows.txt
+          #   features: gui,database,cuda
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: ${{ matrix.requirements }}
+
+      - name: Install dependencies (${{ matrix.profile }})
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ${{ matrix.requirements }}
+          pip install pyinstaller
+
+      - name: Build EXE with PyInstaller
+        run: |
+          # Customize PyInstaller options as needed
+          # Remove --icon if you don't have an icon file
+          pyinstaller --onefile --name ${{ env.APP_NAME }} --add-data "assets;assets" ${{ env.MAIN_SCRIPT }}
+        # Add --icon=${{ env.ICON_FILE }} if you have an icon
+
+      - name: Generate profile config
+        run: |
+          @"
+          [installation]
+          profile = ${{ matrix.profile }}
+          features = ${{ matrix.features }}
+          install_date = $(Get-Date -Format o)
+          "@ | Out-File -FilePath "${{ env.APP_NAME }}_profile.ini" -Encoding utf8
+        shell: pwsh
+
+      - name: Prepare distribution package
+        run: |
+          mkdir dist-package
+          copy dist\${{ env.APP_NAME }}.exe dist-package\
+          copy ${{ env.APP_NAME }}_profile.ini dist-package\
+          if exist README.md copy README.md dist-package\
+          if exist LICENSE copy LICENSE dist-package\
+        shell: cmd
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: dist-package/*
+          retention-days: 30
+
+  # =============================================================================
+  # Linux Builds (AppImage)
+  # =============================================================================
+  build-linux:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        # ======================================================================
+        # CUSTOMIZE: Add/remove profiles for Linux releases
+        # ======================================================================
+        include:
+          - profile: standard
+            name: ${{ env.APP_NAME }}-Linux
+            requirements: quickstrap/requirements_python.txt
+            features: gui,database
+          # Example: Add more profiles as needed
+          # - profile: cuda
+          #   name: ${{ env.APP_NAME }}-Linux-CUDA
+          #   requirements: quickstrap/requirements_python_cuda.txt
+          #   features: gui,database,cuda
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          # CUSTOMIZE: Add your system dependencies here
+          sudo apt-get install -y \
+            fuse \
+            libfuse2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: ${{ matrix.requirements }}
+
+      - name: Install dependencies (${{ matrix.profile }})
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ${{ matrix.requirements }}
+          pip install pyinstaller
+
+      - name: Build binary with PyInstaller
+        run: |
+          # Customize PyInstaller options as needed
+          pyinstaller --onefile --name ${{ env.APP_NAME }} --add-data "assets:assets" ${{ env.MAIN_SCRIPT }}
+
+      - name: Download appimagetool
+        run: |
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+
+      - name: Create AppDir structure
+        run: |
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          mkdir -p AppDir/usr/share/applications
+
+          # Copy binary
+          cp dist/${{ env.APP_NAME }} AppDir/usr/bin/
+          chmod +x AppDir/usr/bin/${{ env.APP_NAME }}
+
+          # Copy icon (customize path as needed)
+          # cp assets/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/${{ env.APP_NAME }}.png
+          # cp assets/icon.png AppDir/${{ env.APP_NAME }}.png
+
+          # Create .desktop file
+          cat > AppDir/${{ env.APP_NAME }}.desktop << 'DESKTOP'
+          [Desktop Entry]
+          Type=Application
+          Name=${{ env.APP_NAME }}
+          Exec=${{ env.APP_NAME }}
+          Icon=${{ env.APP_NAME }}
+          Categories=Utility;
+          Comment=Your application description
+          Terminal=false
+          DESKTOP
+
+          cp AppDir/${{ env.APP_NAME }}.desktop AppDir/usr/share/applications/
+
+          # Create AppRun
+          cat > AppDir/AppRun << APPRUN
+          #!/bin/bash
+          SELF=\$(readlink -f "\$0")
+          HERE=\${SELF%/*}
+          export PATH="\${HERE}/usr/bin:\${PATH}"
+          exec "\${HERE}/usr/bin/${{ env.APP_NAME }}" "\$@"
+          APPRUN
+
+          chmod +x AppDir/AppRun
+
+      - name: Build AppImage
+        run: |
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run AppDir ${{ matrix.name }}.AppImage
+
+      - name: Generate profile config
+        run: |
+          cat > ${{ env.APP_NAME }}_profile.ini << EOF
+          [installation]
+          profile = ${{ matrix.profile }}
+          features = ${{ matrix.features }}
+          install_date = $(date -Iseconds)
+          EOF
+
+      - name: Prepare distribution package
+        run: |
+          mkdir dist-package
+          cp ${{ matrix.name }}.AppImage dist-package/
+          cp ${{ env.APP_NAME }}_profile.ini dist-package/
+          [ -f README.md ] && cp README.md dist-package/ || true
+          [ -f LICENSE ] && cp LICENSE dist-package/ || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: dist-package/*
+          retention-days: 30
+
+  # =============================================================================
+  # Create GitHub Release
+  # =============================================================================
+  release:
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          find artifacts -type f
+          echo ""
+          echo "Directory structure:"
+          ls -la artifacts/
+
+      - name: Create archives for release
+        run: |
+          cd artifacts
+          for dir in */; do
+            name="${dir%/}"
+            if [[ "$name" == *"Windows"* ]]; then
+              echo "Creating ZIP for $name"
+              zip -r "../${name}.zip" "$name"
+            else
+              echo "Creating tar.gz for $name"
+              tar -czvf "../${name}.tar.gz" "$name"
+            fi
+          done
+          cd ..
+          echo ""
+          echo "Created archives:"
+          ls -la *.zip *.tar.gz 2>/dev/null || true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            *.zip
+            *.tar.gz
+          generate_release_notes: true
+          body: |
+            ## Downloads
+
+            ### Windows
+            | File | Description |
+            |------|-------------|
+            | `${{ env.APP_NAME }}-Windows.zip` | Standard installation |
+
+            ### Linux
+            | File | Description |
+            |------|-------------|
+            | `${{ env.APP_NAME }}-Linux.tar.gz` | Standard AppImage |
+
+            ---
+
+            ## Installation
+
+            ### Windows
+            1. Download the ZIP file
+            2. Extract to a folder of your choice
+            3. Run `${{ env.APP_NAME }}.exe`
+
+            ### Linux
+            1. Download the tar.gz file
+            2. Extract: `tar -xzf ${{ env.APP_NAME }}-Linux.tar.gz`
+            3. Make executable: `chmod +x *.AppImage`
+            4. Run: `./${{ env.APP_NAME }}-Linux.AppImage`
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

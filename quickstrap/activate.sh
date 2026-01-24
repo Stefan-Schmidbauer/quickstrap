@@ -9,7 +9,7 @@
 #
 # This provides:
 # - Activated virtual environment
-# - Quickstrap environment variables (QUICKSTRAP_APP_NAME, QUICKSTRAP_CONFIG_DIR)
+# - Quickstrap environment variables (QUICKSTRAP_APP_NAME, QUICKSTRAP_CONFIG_DIR, QUICKSTRAP_PROJECT_ROOT)
 # - Updated PATH with venv binaries
 #
 
@@ -33,11 +33,10 @@ CONFIG_FILE="$PROJECT_ROOT/quickstrap/installation_profiles.ini"
 if [ -f "$CONFIG_FILE" ]; then
     # Parse INI file for metadata
     export QUICKSTRAP_APP_NAME=$(grep -A 10 '^\[metadata\]' "$CONFIG_FILE" | grep '^app_name' | cut -d'=' -f2- | xargs)
-    export QUICKSTRAP_CONFIG_DIR=$(grep -A 10 '^\[metadata\]' "$CONFIG_FILE" | grep '^config_dir' | cut -d'=' -f2- | xargs)
+    # Config is stored in project directory (not user config directory)
+    export QUICKSTRAP_CONFIG_DIR="$PROJECT_ROOT"
+    export QUICKSTRAP_PROJECT_ROOT="$PROJECT_ROOT"
 fi
-
-# Set developer mode flag
-export QUICKSTRAP_DEV=1
 
 # Show activation message
 echo "╭───────────────────────────────────────────────╮"
@@ -47,7 +46,8 @@ echo ""
 echo "Environment:"
 echo "  • Virtual environment: $VENV_PATH"
 [ -n "$QUICKSTRAP_APP_NAME" ] && echo "  • App name: $QUICKSTRAP_APP_NAME"
-[ -n "$QUICKSTRAP_CONFIG_DIR" ] && echo "  • Config dir: ~/.config/$QUICKSTRAP_CONFIG_DIR"
+[ -n "$QUICKSTRAP_CONFIG_DIR" ] && echo "  • Config dir: $QUICKSTRAP_CONFIG_DIR"
+[ -n "$QUICKSTRAP_PROJECT_ROOT" ] && echo "  • Project root: $QUICKSTRAP_PROJECT_ROOT"
 echo ""
 echo "Python: $(python --version)"
 echo ""

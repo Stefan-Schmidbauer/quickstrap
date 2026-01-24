@@ -47,7 +47,7 @@ Set-Location $ProjectRoot
 
 # Parse quickstrap/installation_profiles.ini
 $AppName = Read-IniValue -File "quickstrap/installation_profiles.ini" -Section "metadata" -Key "app_name" -Default "Application"
-$ConfigDir = Read-IniValue -File "quickstrap/installation_profiles.ini" -Section "metadata" -Key "config_dir" -Default "app"
+$AppNameLower = $AppName.ToLower()
 
 # Check if virtual environment exists
 $VenvPath = Join-Path $ProjectRoot "venv"
@@ -75,11 +75,8 @@ else {
 
 # Set environment variables for the application
 $env:QUICKSTRAP_APP_NAME = $AppName
-$env:QUICKSTRAP_CONFIG_DIR = $ConfigDir
+$env:QUICKSTRAP_CONFIG_DIR = $ProjectRoot  # Config is stored in project directory
 $env:QUICKSTRAP_PROJECT_ROOT = $ProjectRoot
-
-# Set config file path (Windows uses LOCALAPPDATA instead of ~/.config)
-$env:QUICKSTRAP_CONFIG_FILE = Join-Path $env:LOCALAPPDATA $ConfigDir "installation_profile.ini"
 
 # Return to original location
 Set-Location $OriginalLocation
@@ -94,7 +91,6 @@ Write-Host "Environment Variables Set:" -ForegroundColor Yellow
 Write-Host "  QUICKSTRAP_APP_NAME     = $env:QUICKSTRAP_APP_NAME"
 Write-Host "  QUICKSTRAP_CONFIG_DIR   = $env:QUICKSTRAP_CONFIG_DIR"
 Write-Host "  QUICKSTRAP_PROJECT_ROOT = $env:QUICKSTRAP_PROJECT_ROOT"
-Write-Host "  QUICKSTRAP_CONFIG_FILE  = $env:QUICKSTRAP_CONFIG_FILE"
 Write-Host ""
 Write-Host "Virtual environment activated. Run 'deactivate' to exit." -ForegroundColor Green
 Write-Host ""

@@ -11,7 +11,8 @@ Quickstrap provides a simple, reusable installation system that handles both Pyt
 - **Virtual Environment** - Automatic venv creation and management
 - **Feature Detection** - Applications can detect which features were installed
 - **Post-Install Hooks** - Run custom scripts after installation
-- **Windows EXE Builder** - Create standalone Windows executables with PyInstaller
+- **Binary Builder** - Create standalone executables (Windows EXE, Linux AppImage) with PyInstaller
+- **GitHub Actions** - Automated multi-platform release builds
 - **Template-Driven** - No code changes needed, just configure INI files
 - **Copy-and-Go** - Clone, configure, and you're ready to deploy
 
@@ -112,9 +113,10 @@ Your application can detect which features were installed by reading the configu
 from pathlib import Path
 from configparser import ConfigParser
 
-def get_installed_features(config_dir_name: str) -> set:
-    """Read installed features from Quickstrap config."""
-    config_file = Path.home() / '.config' / config_dir_name / 'installation_profile.ini'
+def get_installed_features(app_name: str) -> set:
+    """Read installed features from Quickstrap config (stored in project directory)."""
+    # Config file is in the project directory with app-specific name
+    config_file = Path(__file__).parent / f'{app_name.lower()}_profile.ini'
 
     if not config_file.exists():
         return set()
@@ -126,7 +128,7 @@ def get_installed_features(config_dir_name: str) -> set:
     return set(f.strip() for f in features_str.split(',') if f.strip())
 
 # Usage:
-features = get_installed_features('my-app')
+features = get_installed_features('my-app')  # looks for ./my-app_profile.ini
 
 if 'gui' in features:
     import tkinter
@@ -137,7 +139,7 @@ if 'pdf' in features:
     # Enable PDF generation
 ```
 
-The configuration is stored at: `~/.config/{your-config-dir}/installation_profile.ini`
+The configuration is stored in the project directory: `./{app_name}_profile.ini` (e.g., `myapp_profile.ini`)
 
 ## Pre-Install Scripts
 
@@ -253,7 +255,7 @@ If the script fails, the installation fails.
 Post-install scripts have access to these environment variables:
 
 - `QUICKSTRAP_APP_NAME` - The application name from metadata
-- `QUICKSTRAP_CONFIG_DIR` - The config directory name from metadata
+- `QUICKSTRAP_CONFIG_DIR` - Path to the project directory (where config files are stored)
 - `VIRTUAL_ENV` - Path to the virtual environment (e.g., `/path/to/project/venv`)
 - `PATH` - Automatically updated to include the venv's `bin` directory first. This ensures that when your script calls `python`, `pip`, or any installed Python tools, the versions from the virtual environment are used instead of system versions. You can directly use commands like `python script.py` without specifying the full venv path.
 
@@ -262,8 +264,8 @@ Example usage in a script:
 ```bash
 #!/bin/bash
 echo "Setting up $QUICKSTRAP_APP_NAME..."
-CONFIG_PATH="$HOME/.config/$QUICKSTRAP_CONFIG_DIR"
-mkdir -p "$CONFIG_PATH"
+# Config files are in the project directory
+CONFIG_PATH="$QUICKSTRAP_CONFIG_DIR"
 ```
 
 ## Usage
@@ -433,32 +435,67 @@ This is useful when you want to:
 - Debug or explore code interactively
 - Work with multiple terminal sessions
 
-## Building Windows EXE
+## Building Standalone Binaries
 
-Quickstrap includes built-in support for creating standalone Windows executables using PyInstaller. This allows you to distribute your Quickstrap-based application to Windows users without requiring them to install Python.
+Quickstrap includes built-in support for creating standalone executables using PyInstaller:
+
+- **Windows**: Standalone `.exe` files
+- **Linux**: AppImage files (portable, no installation required)
+
+This allows you to distribute your Quickstrap-based application without requiring users to install Python.
 
 **Note**: This feature is for your application project that uses Quickstrap, not for Quickstrap itself.
 
-### Quick Build
+### Cross-Platform Path Handling
 
-**On Windows** (PowerShell or CMD):
+If your application uses file paths, ensure they work on both Linux and Windows:
+
+```python
+from pathlib import Path
+
+# Good: Works on both platforms
+config_file = Path.home() / '.config' / 'myapp' / 'config.ini'
+
+# Bad: Linux-specific
+config_file = os.path.expanduser('~/.config/myapp/config.ini')
+```
+
+For user-specific data directories (separate from Quickstrap config):
+
+```python
+from pathlib import Path
+import sys
+
+def get_user_data_dir():
+    """Get user-specific data directory."""
+    if sys.platform == 'win32':
+        return Path.home() / 'AppData' / 'Roaming' / 'myapp'
+    else:
+        return Path.home() / '.config' / 'myapp'
+```
+
+### Quick Build (Manual)
+
+**On Windows** (creates `.exe`):
 
 ```powershell
 .\quickstrap\scripts\build_windows_exe.ps1
 ```
 
-**On Linux/Mac** (for testing, but creates Linux/Mac binary):
+**On Linux** (creates binary):
 
 ```bash
 ./quickstrap/scripts/build_windows_exe.sh
 ```
 
-**Important**: PyInstaller builds for the platform it runs on. To create a Windows `.exe`, you must run the script on Windows.
+**Important**: PyInstaller builds for the platform it runs on. To create a Windows `.exe`, run on Windows. To create a Linux binary, run on Linux.
 
 This will:
 1. Automatically install PyInstaller if needed
 2. Read your application configuration
 3. Create a standalone executable in the `dist/` directory
+
+For automated builds with AppImage support, see [GitHub Actions](#github-actions-automated-releases).
 
 ### Advanced Configuration
 
@@ -513,29 +550,117 @@ DATAS = [('config', 'config')]
 HIDDEN_IMPORTS = ['package.module']
 ```
 
-**Reduce EXE size** (exclude unused modules):
+**Reduce binary size** (exclude unused modules):
 ```python
 EXCLUDES = ['tkinter', 'matplotlib']
 ```
 
 ### Distribution
 
-The generated EXE in `dist/` is fully standalone:
+The generated binaries in `dist/` are fully standalone:
 - No Python installation required on target system
 - All dependencies bundled
 - Can be distributed as a single file
 
-Simply share the EXE file with Windows users!
+**Windows**: Share the `.exe` file directly.
+
+**Linux**: The GitHub Actions workflow creates AppImages - portable executables that work on most Linux distributions without installation. Users just download, make executable (`chmod +x`), and run.
 
 ### Troubleshooting
 
 **Build fails**: Check that your main script path in `installation_profiles.ini` is correct.
 
-**Missing modules**: Add them to `HIDDEN_IMPORTS` in `pyinstaller.spec`.
+**Missing modules at runtime**: Binary crashes with "ModuleNotFoundError" - add missing modules to `HIDDEN_IMPORTS` in `pyinstaller.spec`:
 
-**Large EXE size**: Add unused modules to `EXCLUDES` in `pyinstaller.spec`.
+```python
+HIDDEN_IMPORTS = ['package.submodule', 'problematic_module']
+```
 
-**Runtime errors**: Check for dynamic imports or file path issues in your code.
+**Large binary size**: Generated binary is 50+ MB - exclude unused modules in `pyinstaller.spec`:
+
+```python
+EXCLUDES = ['matplotlib', 'numpy', 'tkinter']
+```
+
+**Runtime errors with file paths**: Application can't find data files - use PyInstaller's `sys._MEIPASS` for bundled files:
+
+```python
+import sys
+from pathlib import Path
+
+def get_resource_path(relative_path):
+    """Get absolute path to resource, works for dev and for PyInstaller"""
+    try:
+        base_path = Path(sys._MEIPASS)  # PyInstaller temp folder
+    except Exception:
+        base_path = Path(__file__).parent
+    return base_path / relative_path
+```
+
+**Antivirus false positives**: Windows Defender flags the EXE as malware - this is common with PyInstaller. Options:
+1. Sign your EXE with a code signing certificate
+2. Add an exception in Windows Defender
+3. Distribute source code for security-conscious users
+
+### Testing Without Windows
+
+To test your Windows EXE without a Windows machine:
+
+1. **Wine (Linux)**: `wine dist/MyApp.exe`
+2. Use a Windows VM or Docker container
+3. Ask a Windows user to test
+
+### Distribution Options
+
+**Direct distribution** - share the `.exe` file via GitHub Releases, cloud storage, or your website.
+
+**Professional installer** (optional) - use tools like NSIS, Inno Setup, or WiX Toolset to create installers that:
+- Install to Program Files
+- Create Start Menu shortcuts
+- Add desktop icons
+- Register file associations
+
+### GitHub Actions (Automated Releases)
+
+Quickstrap includes a GitHub Actions workflow template for automated multi-platform releases.
+
+**Setup:**
+
+1. Copy the workflow to your project:
+   ```bash
+   cp .github/workflows/build-releases.yml your-project/.github/workflows/
+   ```
+
+2. Edit the workflow and customize:
+   - `APP_NAME`, `MAIN_SCRIPT`, `ICON_FILE` in the `env` section
+   - Matrix entries to match your profiles (you don't need all profiles - only those you want to release)
+
+3. Create a release by pushing a tag:
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+**What it builds:**
+- **Windows**: Standalone `.exe` files (one per profile)
+- **Linux**: AppImage files (one per profile)
+
+**Example matrix configuration** (release only 2 of 4 profiles):
+
+```yaml
+matrix:
+  include:
+    - profile: basis
+      name: MyApp-Windows
+      requirements: quickstrap/requirements_python_basis.txt
+      features: core
+    - profile: cuda
+      name: MyApp-Windows-CUDA
+      requirements: quickstrap/requirements_python_cuda.txt
+      features: core,cuda
+```
+
+See `.github/workflows/build-releases.yml` for the full template.
 
 ## Configuration Reference
 
@@ -545,8 +670,8 @@ Global application configuration:
 
 | Field           | Required | Description                                                     |
 | --------------- | -------- | --------------------------------------------------------------- |
-| `app_name`      | Yes      | Display name of your application                                |
-| `config_dir`    | Yes      | Directory name under `~/.config/` for storing installation info |
+| `app_name`      | Yes      | Display name of your application (also used for config filename)|
+| `config_dir`    | No       | Deprecated - config is now stored in project directory          |
 | `start_command` | Yes      | Command to start your application (e.g., `python3 src/main.py`) |
 | `after_install` | No       | Message displayed after successful installation                 |
 
@@ -569,7 +694,7 @@ Installation profile configuration:
 ```ini
 [metadata]
 app_name = My Amazing App
-config_dir = my-amazing-app
+# config_dir is deprecated - config is stored in project directory
 start_command = python3 src/main.py
 after_install = Start with: ./start.sh
 
@@ -624,6 +749,9 @@ Example structure:
 
 ```
 your-project/
+├── .github/
+│   └── workflows/
+│       └── build-releases.yml         # GitHub Actions release workflow (template)
 ├── README.quickstrap.md               # Quickstrap documentation (this file)
 ├── install.py                         # Quickstrap installer (cross-platform)
 ├── start.sh                           # Linux starter script
@@ -730,7 +858,7 @@ Quickstrap supports **Linux** (Debian/Ubuntu-based) and **Windows** (10/11 with 
 | Feature detection | ✓ | ✓ |
 | System package verification | ✓ (dpkg) | ✗ (manual) |
 | Pre/Post-install bash scripts | ✓ | ✗ (skipped) |
-| Config file location | `~/.config/` | `%LOCALAPPDATA%` |
+| Config file location | Project directory | Project directory |
 
 ### Adding Python Packages
 
