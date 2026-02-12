@@ -45,13 +45,19 @@ Set-Location $ScriptDir
 
 # Parse quickstrap/installation_profiles.ini
 $AppName = Read-IniValue -File "quickstrap/installation_profiles.ini" -Section "metadata" -Key "app_name" -Default "Application"
-$StartCmd = Read-IniValue -File "quickstrap/installation_profiles.ini" -Section "metadata" -Key "start_command" -Default "python main.py"
 
-# App name lowercase for config filename
-$AppNameLower = $AppName.ToLower()
+# Try platform-specific start_command first, then fall back to generic
+$StartCmd = Read-IniValue -File "quickstrap/installation_profiles.ini" -Section "metadata" -Key "start_command_windows" -Default ""
+if (-not $StartCmd) {
+    $StartCmd = Read-IniValue -File "quickstrap/installation_profiles.ini" -Section "metadata" -Key "start_command" -Default "python main.py"
+}
+
+# App name lowercase for config filename (normalize: spaces and slashes to underscores)
+$AppNameLower = $AppName.ToLower() -replace '[ /\\]', '_'
 
 # Convert python3 to python for Windows (python3 is not standard on Windows)
 # After venv activation, 'python' should work from venv Scripts folder
+$StartCmd = $StartCmd -replace "^python3$", "python"
 $StartCmd = $StartCmd -replace "^python3\s", "python "
 $StartCmd = $StartCmd -replace "\spython3\s", " python "
 
@@ -97,17 +103,18 @@ $cmdParts = $StartCmd -split '\s+', 2
 $executable = $cmdParts[0]
 $cmdArgs = if ($cmdParts.Length -gt 1) { $cmdParts[1] } else { "" }
 
-# Combine command arguments with script arguments
-if ($args.Length -gt 0) {
-    $allArgs = "$cmdArgs $($args -join ' ')"
+# Build argument array safely (avoiding Invoke-Expression for security)
+$argumentList = @()
+if ($cmdArgs) {
+    $argumentList += $cmdArgs -split '\s+'
 }
-else {
-    $allArgs = $cmdArgs
+if ($args.Length -gt 0) {
+    $argumentList += $args
 }
 
-# Execute the start command
-if ($allArgs) {
-    Invoke-Expression "$executable $allArgs"
+# Execute the start command with call operator (secure)
+if ($argumentList.Count -gt 0) {
+    & $executable $argumentList
 }
 else {
     & $executable

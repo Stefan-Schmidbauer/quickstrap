@@ -198,7 +198,7 @@ When a pre-install script fails:
 
 ```
 Step 2: Pre-Installation Scripts
-ℹ Running pre-install script: quickstrap/scripts/check_nvidia_driver.sh
+[i] Running pre-install script: quickstrap/scripts/check_nvidia_driver.sh
 Error: NVIDIA driver not found (nvidia-smi not available)
 
 Install NVIDIA drivers:
@@ -206,9 +206,9 @@ Install NVIDIA drivers:
   2. Install driver: sudo apt install nvidia-driver-XXX
   3. Reboot system
 
-✗ Pre-install script failed: quickstrap/scripts/check_nvidia_driver.sh
+[X] Pre-install script failed: quickstrap/scripts/check_nvidia_driver.sh
 
-⚠ Warning: Pre-installation scripts failed
+[!] Warning: Pre-installation scripts failed
 Continue anyway? [y/N]: _
 ```
 
@@ -482,13 +482,13 @@ def get_user_data_dir():
 .\quickstrap\scripts\build_windows_exe.ps1
 ```
 
-**On Linux** (creates binary):
+**On Linux** (creates binary, but note the EXE won't run natively on Linux):
 
 ```bash
 ./quickstrap/scripts/build_windows_exe.sh
 ```
 
-**Important**: PyInstaller builds for the platform it runs on. To create a Windows `.exe`, run on Windows. To create a Linux binary, run on Linux.
+**Important**: PyInstaller builds for the platform it runs on. To create a Windows `.exe`, run on Windows. To create a Linux binary, use the GitHub Actions workflow which creates AppImages.
 
 This will:
 1. Automatically install PyInstaller if needed
@@ -626,9 +626,9 @@ Quickstrap includes a GitHub Actions workflow template for automated multi-platf
 
 **Setup:**
 
-1. Copy the workflow to your project:
+1. Copy the workflow template to your project and rename it:
    ```bash
-   cp .github/workflows/build-releases.yml your-project/.github/workflows/
+   cp .github/workflows/build-releases.yml.template your-project/.github/workflows/build-releases.yml
    ```
 
 2. Edit the workflow and customize:
@@ -660,7 +660,7 @@ matrix:
       features: core,cuda
 ```
 
-See `.github/workflows/build-releases.yml` for the full template.
+See `.github/workflows/build-releases.yml.template` for the full template.
 
 ## Configuration Reference
 
@@ -670,10 +670,13 @@ Global application configuration:
 
 | Field           | Required | Description                                                     |
 | --------------- | -------- | --------------------------------------------------------------- |
-| `app_name`      | Yes      | Display name of your application (also used for config filename)|
-| `config_dir`    | No       | Deprecated - config is now stored in project directory          |
-| `start_command` | Yes      | Command to start your application (e.g., `python3 src/main.py`) |
-| `after_install` | No       | Message displayed after successful installation                 |
+| `app_name`              | Yes      | Display name of your application (also used for config filename)              |
+| `config_dir`            | No       | Deprecated - config is now stored in project directory                        |
+| `start_command`         | Yes      | Command to start your application (e.g., `python3 src/main.py`)              |
+| `start_command_linux`   | No       | Linux-specific start command (overrides `start_command`)                      |
+| `start_command_windows` | No       | Windows-specific start command (overrides `start_command`)                    |
+| `after_install`         | No       | Message displayed after successful installation                               |
+| `supported_platforms`   | No       | Comma-separated list of supported platforms (default: `linux,windows`)        |
 
 ### Profile Section (`[profile:NAME]`)
 
@@ -685,7 +688,7 @@ Installation profile configuration:
 | `description`          | Yes      | Description of what this profile includes                                     |
 | `features`             | Yes      | Comma-separated feature list (used by your app for feature detection)         |
 | `python_requirements`  | Yes      | Path to Python packages file (e.g., `quickstrap/requirements_python.txt`)     |
-| `system_requirements`  | Yes      | Path to system packages file (e.g., `quickstrap/requirements_system.txt`)     |
+| `system_requirements`  | No       | Path to system packages file, Linux only (e.g., `quickstrap/requirements_system.txt`) |
 | `pre_install_scripts`  | No       | Comma-separated list of pre-install scripts (run before venv creation)        |
 | `post_install_scripts` | No       | Comma-separated list of post-install scripts (run after package installation) |
 
@@ -751,7 +754,7 @@ Example structure:
 your-project/
 ├── .github/
 │   └── workflows/
-│       └── build-releases.yml         # GitHub Actions release workflow (template)
+│       └── build-releases.yml.template # GitHub Actions release workflow (template)
 ├── README.quickstrap.md               # Quickstrap documentation (this file)
 ├── install.py                         # Quickstrap installer (cross-platform)
 ├── start.sh                           # Linux starter script

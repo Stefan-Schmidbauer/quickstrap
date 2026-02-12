@@ -8,6 +8,15 @@ The profile configuration determines available features, requirements, and insta
 
 import sys
 import os
+
+# Check Python version early (must be before other imports)
+if sys.version_info < (3, 6):
+    print("Error: Python 3.6 or higher is required")
+    print(f"Current version: Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")
+    print("\nPlease upgrade Python:")
+    print("  - Linux: sudo apt install python3")
+    print("  - Windows: Download from https://www.python.org/downloads/")
+    sys.exit(1)
 import subprocess
 import argparse
 import shutil
@@ -205,7 +214,7 @@ def read_profiles(profile_file: str = 'quickstrap/installation_profiles.ini') ->
         sys.exit(1)
 
     config = ConfigParser()
-    config.read(profile_file)
+    config.read(profile_file, encoding='utf-8')
 
     profiles = {}
     for section in config.sections():
@@ -292,7 +301,7 @@ def check_system_packages_linux(package_file: str) -> Tuple[List[str], List[str]
 
     # Read package list
     packages = []
-    with open(package_file, 'r') as f:
+    with open(package_file, 'r', encoding='utf-8') as f:
         for line in f:
             line = line.strip()
             # Skip empty lines and comments
@@ -376,10 +385,10 @@ def setup_venv(force: bool = False) -> Path:
         print_info("Removing existing venv...")
         shutil.rmtree(venv_path)
 
-    if not venv_path.exists():
-        print_info("Creating virtual environment...")
+    def _create_venv():
+        """Create a new virtual environment, exit on failure."""
         try:
-            result = subprocess.run(
+            subprocess.run(
                 [sys.executable, '-m', 'venv', 'venv'],
                 capture_output=True,
                 text=True,
@@ -394,6 +403,10 @@ def setup_venv(force: bool = False) -> Path:
         except Exception as e:
             print_error(f"Unexpected error creating virtual environment: {e}")
             sys.exit(1)
+
+    if not venv_path.exists():
+        print_info("Creating virtual environment...")
+        _create_venv()
     else:
         # Verify the venv is valid by checking for critical files
         pip_exe, python_exe = get_venv_paths(venv_path)
@@ -402,22 +415,7 @@ def setup_venv(force: bool = False) -> Path:
             print_warning("Virtual environment exists but appears corrupted")
             print_info("Recreating virtual environment...")
             shutil.rmtree(venv_path)
-            try:
-                result = subprocess.run(
-                    [sys.executable, '-m', 'venv', 'venv'],
-                    capture_output=True,
-                    text=True,
-                    check=True
-                )
-                print_success("Virtual environment created")
-            except subprocess.CalledProcessError as e:
-                print_error("Failed to create virtual environment")
-                if e.stderr:
-                    print_error(f"Error: {e.stderr}")
-                sys.exit(1)
-            except Exception as e:
-                print_error(f"Unexpected error creating virtual environment: {e}")
-                sys.exit(1)
+            _create_venv()
         else:
             print_info("Virtual environment already exists")
 
@@ -461,7 +459,7 @@ def check_package_updates(venv_path: Path, requirements_file: str) -> Dict[str, 
         import json
         outdated = json.loads(result.stdout)
         return {pkg['name']: pkg['latest_version'] for pkg in outdated}
-    except:
+    except Exception:
         return {}
 
 
@@ -576,6 +574,21 @@ def install_python_packages(venv_path: Path, requirements_file: str) -> bool:
             return False
 
         print_success("Python packages installed successfully")
+
+        # Generate frozen requirements for reproducibility
+        try:
+            freeze_result = subprocess.run(
+                [str(pip_exe), 'freeze'],
+                capture_output=True,
+                text=True
+            )
+            if freeze_result.returncode == 0 and freeze_result.stdout:
+                frozen_path = Path('requirements_frozen.txt')
+                frozen_path.write_text(freeze_result.stdout, encoding='utf-8')
+                print_info(f"Frozen requirements saved to {frozen_path}")
+        except Exception:
+            print_warning("Could not generate frozen requirements file")
+
         return True
 
     except Exception as e:
@@ -755,8 +768,9 @@ def write_installation_config(profile_name: str, features: str, app_name: str) -
     config_dir = get_config_dir()
     # No need to create directory - we're in the project directory
 
-    # App-specific config filename (lowercase)
-    config_filename = f"{app_name.lower()}_profile.ini"
+    # App-specific config filename (lowercase, spaces replaced with underscores)
+    safe_app_name = app_name.lower().replace(' ', '_').replace('/', '_').replace('\\', '_')
+    config_filename = f"{safe_app_name}_profile.ini"
     config_file = config_dir / config_filename
 
     config = ConfigParser()
@@ -766,7 +780,7 @@ def write_installation_config(profile_name: str, features: str, app_name: str) -
         'install_date': datetime.now().isoformat(),
     }
 
-    with open(config_file, 'w') as f:
+    with open(config_file, 'w', encoding='utf-8') as f:
         config.write(f)
 
     print_success("Installation config written")
@@ -915,14 +929,14 @@ Examples:
             else:
                 print_success(f"  File references: OK")
 
-            # Check script executability
+            # Check script executability (platform-aware)
             scripts_to_check = []
 
-            scripts_pre = profile.get('pre_install_scripts', '').strip()
+            scripts_pre = resolve_platform_config(profile, 'pre_install_scripts')
             if scripts_pre:
                 scripts_to_check.extend([(s.strip(), 'pre_install') for s in scripts_pre.split(',') if s.strip()])
 
-            scripts_post = profile.get('post_install_scripts', '').strip()
+            scripts_post = resolve_platform_config(profile, 'post_install_scripts')
             if scripts_post:
                 scripts_to_check.extend([(s.strip(), 'post_install') for s in scripts_post.split(',') if s.strip()])
 
@@ -983,7 +997,8 @@ Examples:
             sys.exit(1)
 
         # Determine which profile is installed (config in project directory)
-        config_file = get_config_dir() / f'{app_name.lower()}_profile.ini'
+        safe_app_name = app_name.lower().replace(' ', '_').replace('/', '_').replace('\\', '_')
+        config_file = get_config_dir() / f'{safe_app_name}_profile.ini'
 
         if not config_file.exists():
             print_error("Installation profile not found")
@@ -1024,7 +1039,8 @@ Examples:
     # Update mode
     if args.update_python:
         # Determine profile to update (config in project directory)
-        config_file = get_config_dir() / f'{app_name.lower()}_profile.ini'
+        safe_app_name = app_name.lower().replace(' ', '_').replace('/', '_').replace('\\', '_')
+        config_file = get_config_dir() / f'{safe_app_name}_profile.ini'
 
         if not config_file.exists():
             print_error("Installation profile not found")
@@ -1070,31 +1086,6 @@ Examples:
 
     # Print header
     print_header(f"{app_name} Installation")
-
-    # Validation mode - validate all profiles without installing
-    if args.validate:
-        print_header("Validation Mode")
-        print_info(f"Validating {len(profiles)} profile(s)...")
-
-        all_valid = True
-        for profile_name, profile_config in profiles.items():
-            print_info(f"Validating profile: {profile_name}")
-            missing_files = validate_profile_files(profile_config)
-            if missing_files:
-                all_valid = False
-                print_error(f"  Profile '{profile_name}' has missing files:")
-                for missing_file in missing_files:
-                    print(f"    - {missing_file}")
-            else:
-                print_success(f"  Profile '{profile_name}' is valid")
-
-        print()
-        if all_valid:
-            print_success("All profiles validated successfully")
-            sys.exit(0)
-        else:
-            print_error("Validation failed - some profiles have missing files")
-            sys.exit(1)
 
     # Show loaded profiles
     print_info("Loading installation profiles...")
@@ -1221,32 +1212,33 @@ Examples:
         script_list = [s.strip() for s in scripts.split(',') if s.strip()]
 
         platform = get_platform_name()
-        for script_path in script_list:
-            if not Path(script_path).exists():
-                print_warning(f"Post-install script not found: {script_path}")
-                continue
 
-            print_info(f"Running post-install script: {script_path}")
-
+        # On Windows, skip bash scripts with a warning
+        if platform == 'windows':
+            print_warning("Bash script execution is not available on Windows")
+            print_info(f"The following {len(script_list)} post-install script(s) will be skipped:")
+            for script_path in script_list:
+                print(f"    - {script_path}")
+            print_info("On Windows, you may need to manually perform any post-installation steps")
+            print_info("Skipping post-install scripts...")
+            print_success("Post-install scripts skipped on Windows")
+        else:
             # Prepare environment with venv activation and Quickstrap metadata
             env = os.environ.copy()
             env['VIRTUAL_ENV'] = str(venv_path)
             pip_exe, _ = get_venv_paths(venv_path)
-            path_sep = ';' if sys.platform == 'win32' else ':'
+            path_sep = ':'
             env['PATH'] = f"{pip_exe.parent}{path_sep}{env['PATH']}"
             env['QUICKSTRAP_APP_NAME'] = app_name
             env['QUICKSTRAP_CONFIG_DIR'] = str(get_config_dir())  # Project directory
 
-            # Run script based on platform
-            if platform == 'windows':
-                # Run PowerShell script
-                result = subprocess.run(
-                    ['powershell', '-ExecutionPolicy', 'Bypass', '-File', script_path],
-                    env=env,
-                    capture_output=True,
-                    text=True
-                )
-            else:
+            for script_path in script_list:
+                if not Path(script_path).exists():
+                    print_warning(f"Post-install script not found: {script_path}")
+                    continue
+
+                print_info(f"Running post-install script: {script_path}")
+
                 # Run Bash script
                 result = subprocess.run(
                     ['bash', script_path],
@@ -1255,17 +1247,17 @@ Examples:
                     text=True
                 )
 
-            # Display output
-            if result.stdout:
-                print(result.stdout)
-            if result.stderr:
-                print(result.stderr, file=sys.stderr)
+                # Display output
+                if result.stdout:
+                    print(result.stdout)
+                if result.stderr:
+                    print(result.stderr, file=sys.stderr)
 
-            if result.returncode != 0:
-                print_error(f"Post-install script failed: {script_path}")
-                sys.exit(1)
+                if result.returncode != 0:
+                    print_error(f"Post-install script failed: {script_path}")
+                    sys.exit(1)
 
-        print_success("All post-install scripts completed")
+            print_success("All post-install scripts completed")
 
     # Write installation config
     # Calculate final step number: 1 (sys) + pre_scripts + venv + python + post_scripts + config

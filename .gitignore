@@ -21,8 +21,10 @@ build/
 *.spec
 !quickstrap/pyinstaller.spec.template
 
-# Installation logs
+# Installation logs and config
 install.log
+requirements_frozen.txt
+*_profile.ini
 
 # Environment variables (sensitive data)
 .env
