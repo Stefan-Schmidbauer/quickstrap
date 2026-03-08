@@ -2,7 +2,7 @@
 
 **A lightweight, profile-based installation framework for Python projects**
 
-Quickstrap provides a simple, reusable installation system that handles both Python packages (pip) and system packages (apt/dpkg on Linux), with support for multiple installation profiles and post-install hooks. **Works on both Linux and Windows.**
+Quickstrap provides a simple, reusable installation system that handles both Python packages (pip) and system packages (apt/dpkg), with support for multiple installation profiles and post-install hooks.
 
 ## Features
 
@@ -11,8 +11,6 @@ Quickstrap provides a simple, reusable installation system that handles both Pyt
 - **Virtual Environment** - Automatic venv creation and management
 - **Feature Detection** - Applications can detect which features were installed
 - **Post-Install Hooks** - Run custom scripts after installation
-- **Binary Builder** - Create standalone executables (Windows EXE, Linux AppImage) with PyInstaller
-- **GitHub Actions** - Automated multi-platform release builds
 - **Template-Driven** - No code changes needed, just configure INI files
 - **Copy-and-Go** - Clone, configure, and you're ready to deploy
 
@@ -49,16 +47,9 @@ Quickstrap provides a simple, reusable installation system that handles both Pyt
 
 5. **Install and run:**
 
-   **Linux:**
    ```bash
    ./install.py
    ./start.sh
-   ```
-
-   **Windows:**
-   ```cmd
-   python install.py
-   start.bat
    ```
 
 ![Interactive Installation](quickstrap/quickstrap_i12.png)
@@ -82,7 +73,7 @@ The interactive installation process guides users through profile selection and 
 2. **Configure and install:**
    - Edit `quickstrap/installation_profiles.ini`
    - Add dependencies to `quickstrap/requirements_*.txt`
-   - Run `./install.py` (Linux) or `python install.py` (Windows)
+   - Run `./install.py`
 
 ## Installation Profiles
 
@@ -160,8 +151,6 @@ pre_install_scripts = quickstrap/scripts/check_nvidia_driver.sh
 2. **Failure Handling**: If a script fails, the user is prompted to continue or abort
 3. **Multiple Scripts**: Comma-separated list, all scripts run in order
 4. **Exit Codes**: Script exit 0 = success, non-zero = failure
-
-**Windows Note:** Pre-install scripts are bash scripts and will be skipped on Windows with a warning message. If you need pre-install checks on Windows, you'll need to perform them manually before running `python install.py`.
 
 ### Example: NVIDIA Driver Verification
 
@@ -248,8 +237,6 @@ Simply uncomment and customize these templates for your needs. All templates inc
 
 If the script fails, the installation fails.
 
-**Windows Note:** Post-install scripts are bash scripts and will be skipped on Windows with a warning message. If your application requires post-install setup on Windows, you'll need to run these steps manually or create PowerShell equivalents.
-
 ### Environment Variables Available to Scripts
 
 Post-install scripts have access to these environment variables:
@@ -272,60 +259,30 @@ CONFIG_PATH="$QUICKSTRAP_CONFIG_DIR"
 
 ### Interactive Installation
 
-**Linux:**
 ```bash
 ./install.py
-```
-
-**Windows:**
-```powershell
-python install.py
 ```
 
 Presents a menu to choose from available profiles.
 
 ### Direct Profile Installation
 
-**Linux:**
 ```bash
 ./install.py --profile standard
 ```
 
-**Windows:**
-```powershell
-python install.py --profile standard
-```
-
-Installs the specified profile directly.
-
 ### Rebuild Virtual Environment
 
-**Linux:**
 ```bash
 ./install.py --rebuild-venv
 # Or with specific profile:
 ./install.py --profile standard --rebuild-venv
 ```
 
-**Windows:**
-```powershell
-python install.py --rebuild-venv
-# Or with specific profile:
-python install.py --profile standard --rebuild-venv
-```
-
-Deletes and recreates the virtual environment from scratch.
-
 ### Dry Run
 
-**Linux:**
 ```bash
 ./install.py --dry-run
-```
-
-**Windows:**
-```powershell
-python install.py --dry-run
 ```
 
 Shows what would be installed without making changes.
@@ -343,324 +300,29 @@ Validates your profile configuration without installing anything. Checks:
 - Script executability
 - Metadata completeness
 
-Useful before committing configuration changes or when setting up a new project.
-
 ### Update Python Packages
 
-Check for Python package updates:
-
 ```bash
-./install.py --check-update-python
+./install.py --check-update-python  # Check for updates
+./install.py --update-python        # Update packages
 ```
-
-Shows which Python packages have newer versions available.
-
-Update Python packages:
-
-```bash
-./install.py --update-python
-```
-
-Updates all Python packages in the virtual environment to match requirements.
 
 ### Start Application
 
-**Linux:**
 ```bash
 ./start.sh
-```
-
-**Windows:**
-```powershell
-start.bat
-```
-
-Activates the virtual environment and starts your application.
-
-### Start Application with Parameters
-
-**Linux:**
-```bash
-./start.sh [arguments...]
-```
-
-**Windows:**
-```powershell
-start.bat [arguments...]
-```
-
-All arguments are passed to your application. Examples:
-
-**Linux:**
-```bash
 ./start.sh --help              # Show application help
 ./start.sh --config production # Start with production config
 ./start.sh process --verbose   # Run command with options
 ```
 
-**Windows:**
-```powershell
-start.bat --help              # Show application help
-start.bat --config production # Start with production config
-start.bat process --verbose   # Run command with options
-```
-
 ### Developer Mode (Activate Virtual Environment)
 
-To work directly in the virtual environment with environment variables set:
-
-**Linux:**
 ```bash
 source quickstrap/activate.sh
 ```
 
-**Windows:**
-```powershell
-. .\quickstrap\activate.ps1
-```
-
-This activates the venv and sets `QUICKSTRAP_APP_NAME`, `QUICKSTRAP_CONFIG_DIR`, and `QUICKSTRAP_PROJECT_ROOT` environment variables.
-
-This provides:
-
-- Activated virtual environment
-- Quickstrap environment variables (`QUICKSTRAP_APP_NAME`, `QUICKSTRAP_CONFIG_DIR`)
-- Updated `PATH` with venv binaries
-- Persistent activation (use `deactivate` to exit)
-
-This is useful when you want to:
-
-- Run Python commands directly without `./start.sh`
-- Use development tools (pytest, mypy, black, etc.)
-- Debug or explore code interactively
-- Work with multiple terminal sessions
-
-## Building Standalone Binaries
-
-Quickstrap includes built-in support for creating standalone executables using PyInstaller:
-
-- **Windows**: Standalone `.exe` files
-- **Linux**: AppImage files (portable, no installation required)
-
-This allows you to distribute your Quickstrap-based application without requiring users to install Python.
-
-**Note**: This feature is for your application project that uses Quickstrap, not for Quickstrap itself.
-
-### Cross-Platform Path Handling
-
-If your application uses file paths, ensure they work on both Linux and Windows:
-
-```python
-from pathlib import Path
-
-# Good: Works on both platforms
-config_file = Path.home() / '.config' / 'myapp' / 'config.ini'
-
-# Bad: Linux-specific
-config_file = os.path.expanduser('~/.config/myapp/config.ini')
-```
-
-For user-specific data directories (separate from Quickstrap config):
-
-```python
-from pathlib import Path
-import sys
-
-def get_user_data_dir():
-    """Get user-specific data directory."""
-    if sys.platform == 'win32':
-        return Path.home() / 'AppData' / 'Roaming' / 'myapp'
-    else:
-        return Path.home() / '.config' / 'myapp'
-```
-
-### Quick Build (Manual)
-
-**On Windows** (creates `.exe`):
-
-```powershell
-.\quickstrap\scripts\build_windows_exe.ps1
-```
-
-**On Linux** (creates binary, but note the EXE won't run natively on Linux):
-
-```bash
-./quickstrap/scripts/build_windows_exe.sh
-```
-
-**Important**: PyInstaller builds for the platform it runs on. To create a Windows `.exe`, run on Windows. To create a Linux binary, use the GitHub Actions workflow which creates AppImages.
-
-This will:
-1. Automatically install PyInstaller if needed
-2. Read your application configuration
-3. Create a standalone executable in the `dist/` directory
-
-For automated builds with AppImage support, see [GitHub Actions](#github-actions-automated-releases).
-
-### Advanced Configuration
-
-For more control over the build process, create a custom PyInstaller spec file:
-
-```bash
-# Copy the template
-cp quickstrap/pyinstaller.spec.template quickstrap/pyinstaller.spec
-
-# Edit the configuration
-nano quickstrap/pyinstaller.spec
-```
-
-Customize these settings in `pyinstaller.spec`:
-
-```python
-# Main script (entry point)
-MAIN_SCRIPT = 'src/main.py'
-
-# Application name
-APP_NAME = 'MyApp'
-
-# Icon file (optional)
-ICON_FILE = 'app.ico'
-
-# Additional data files to include
-DATAS = [
-    ('config', 'config'),
-    ('templates', 'templates'),
-]
-
-# Hide console window for GUI apps
-CONSOLE = False  # Set to True for CLI apps
-```
-
-Then run the build script - it will automatically use your custom spec file.
-
-### Common Build Scenarios
-
-**GUI Application** (no console window):
-```python
-CONSOLE = False
-```
-
-**Include config files**:
-```python
-DATAS = [('config', 'config')]
-```
-
-**Hidden imports** (modules PyInstaller misses):
-```python
-HIDDEN_IMPORTS = ['package.module']
-```
-
-**Reduce binary size** (exclude unused modules):
-```python
-EXCLUDES = ['tkinter', 'matplotlib']
-```
-
-### Distribution
-
-The generated binaries in `dist/` are fully standalone:
-- No Python installation required on target system
-- All dependencies bundled
-- Can be distributed as a single file
-
-**Windows**: Share the `.exe` file directly.
-
-**Linux**: The GitHub Actions workflow creates AppImages - portable executables that work on most Linux distributions without installation. Users just download, make executable (`chmod +x`), and run.
-
-### Troubleshooting
-
-**Build fails**: Check that your main script path in `installation_profiles.ini` is correct.
-
-**Missing modules at runtime**: Binary crashes with "ModuleNotFoundError" - add missing modules to `HIDDEN_IMPORTS` in `pyinstaller.spec`:
-
-```python
-HIDDEN_IMPORTS = ['package.submodule', 'problematic_module']
-```
-
-**Large binary size**: Generated binary is 50+ MB - exclude unused modules in `pyinstaller.spec`:
-
-```python
-EXCLUDES = ['matplotlib', 'numpy', 'tkinter']
-```
-
-**Runtime errors with file paths**: Application can't find data files - use PyInstaller's `sys._MEIPASS` for bundled files:
-
-```python
-import sys
-from pathlib import Path
-
-def get_resource_path(relative_path):
-    """Get absolute path to resource, works for dev and for PyInstaller"""
-    try:
-        base_path = Path(sys._MEIPASS)  # PyInstaller temp folder
-    except Exception:
-        base_path = Path(__file__).parent
-    return base_path / relative_path
-```
-
-**Antivirus false positives**: Windows Defender flags the EXE as malware - this is common with PyInstaller. Options:
-1. Sign your EXE with a code signing certificate
-2. Add an exception in Windows Defender
-3. Distribute source code for security-conscious users
-
-### Testing Without Windows
-
-To test your Windows EXE without a Windows machine:
-
-1. **Wine (Linux)**: `wine dist/MyApp.exe`
-2. Use a Windows VM or Docker container
-3. Ask a Windows user to test
-
-### Distribution Options
-
-**Direct distribution** - share the `.exe` file via GitHub Releases, cloud storage, or your website.
-
-**Professional installer** (optional) - use tools like NSIS, Inno Setup, or WiX Toolset to create installers that:
-- Install to Program Files
-- Create Start Menu shortcuts
-- Add desktop icons
-- Register file associations
-
-### GitHub Actions (Automated Releases)
-
-Quickstrap includes a GitHub Actions workflow template for automated multi-platform releases.
-
-**Setup:**
-
-1. Copy the workflow template to your project and rename it:
-   ```bash
-   cp .github/workflows/build-releases.yml.template your-project/.github/workflows/build-releases.yml
-   ```
-
-2. Edit the workflow and customize:
-   - `APP_NAME`, `MAIN_SCRIPT`, `ICON_FILE` in the `env` section
-   - Matrix entries to match your profiles (you don't need all profiles - only those you want to release)
-
-3. Create a release by pushing a tag:
-   ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
-   ```
-
-**What it builds:**
-- **Windows**: Standalone `.exe` files (one per profile)
-- **Linux**: AppImage files (one per profile)
-
-**Example matrix configuration** (release only 2 of 4 profiles):
-
-```yaml
-matrix:
-  include:
-    - profile: basis
-      name: MyApp-Windows
-      requirements: quickstrap/requirements_python_basis.txt
-      features: core
-    - profile: cuda
-      name: MyApp-Windows-CUDA
-      requirements: quickstrap/requirements_python_cuda.txt
-      features: core,cuda
-```
-
-See `.github/workflows/build-releases.yml.template` for the full template.
+This activates the venv and sets `QUICKSTRAP_APP_NAME`, `QUICKSTRAP_CONFIG_DIR`, and `QUICKSTRAP_PROJECT_ROOT` environment variables. Use `deactivate` to exit.
 
 ## Configuration Reference
 
@@ -673,10 +335,7 @@ Global application configuration:
 | `app_name`              | Yes      | Display name of your application (also used for config filename)              |
 | `config_dir`            | No       | Deprecated - config is now stored in project directory                        |
 | `start_command`         | Yes      | Command to start your application (e.g., `python3 src/main.py`)              |
-| `start_command_linux`   | No       | Linux-specific start command (overrides `start_command`)                      |
-| `start_command_windows` | No       | Windows-specific start command (overrides `start_command`)                    |
 | `after_install`         | No       | Message displayed after successful installation                               |
-| `supported_platforms`   | No       | Comma-separated list of supported platforms (default: `linux,windows`)        |
 
 ### Profile Section (`[profile:NAME]`)
 
@@ -688,7 +347,7 @@ Installation profile configuration:
 | `description`          | Yes      | Description of what this profile includes                                     |
 | `features`             | Yes      | Comma-separated feature list (used by your app for feature detection)         |
 | `python_requirements`  | Yes      | Path to Python packages file (e.g., `quickstrap/requirements_python.txt`)     |
-| `system_requirements`  | No       | Path to system packages file, Linux only (e.g., `quickstrap/requirements_system.txt`) |
+| `system_requirements`  | No       | Path to system packages file (e.g., `quickstrap/requirements_system.txt`)     |
 | `pre_install_scripts`  | No       | Comma-separated list of pre-install scripts (run before venv creation)        |
 | `post_install_scripts` | No       | Comma-separated list of post-install scripts (run after package installation) |
 
@@ -713,38 +372,28 @@ post_install_scripts = quickstrap/scripts/init_database.sh
 
 ## Requirements
 
-### Linux (Debian/Ubuntu)
-
-**Install these system packages:**
+Linux (Debian/Ubuntu-based). Install these system packages:
 
 ```bash
 sudo apt install python3 python3-pip python3-venv
 ```
 
-Required:
-
-- Python 3.6 or higher
-- pip (Python package installer)
-- venv (Virtual environment support)
-- dpkg (Debian package manager - for system package verification)
-
 ### Windows
 
-**Requirements:**
+The automated installer (`install.py`) requires Linux. On Windows, install manually:
 
-- Python 3.6 or higher (download from [python.org](https://www.python.org/downloads/))
-- During Python installation, check "Add Python to PATH"
-- PowerShell (included with Windows)
-
-**PowerShell Execution Policy:**
-
-If you get a "scripts are disabled" error, run PowerShell as Administrator and execute:
-
-```powershell
-Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+python -m venv venv
+venv\Scripts\activate
+pip install -r quickstrap/requirements_python.txt
 ```
 
-**Note on Windows:** System package checking (`dpkg`) is not available on Windows. Quickstrap will skip system package verification and display a list of any required system packages that you may need to install manually.
+Then start with:
+```
+python main.py
+```
+
+> **Note:** System packages listed in `quickstrap/requirements_system.txt` (if any) may need manual installation on Windows.
 
 ## Quickstrap Structure
 
@@ -752,20 +401,14 @@ Example structure:
 
 ```
 your-project/
-├── .github/
-│   └── workflows/
-│       └── build-releases.yml.template # GitHub Actions release workflow (template)
 ├── README.quickstrap.md               # Quickstrap documentation (this file)
-├── install.py                         # Quickstrap installer (cross-platform)
-├── start.sh                           # Linux starter script
-├── start.bat                          # Windows starter script (calls start.ps1)
-├── start.ps1                          # Windows PowerShell script (internal)
+├── install.py                         # Quickstrap installer
+├── start.sh                           # Starter script
 ├── quickstrap/                        # Quickstrap configuration directory
 │   ├── installation_profiles.ini      # Your profiles configuration
 │   ├── requirements_python.txt        # Your Python dependencies
-│   ├── requirements_system.txt        # Your system dependencies
-│   ├── activate.sh                    # Linux developer mode activation
-│   ├── activate.ps1                   # Windows developer mode activation
+│   ├── requirements_system.txt        # Your system dependencies (apt)
+│   ├── activate.sh                    # Developer mode activation
 │   └── scripts/                       # Installation scripts (templates)
 │       ├── check_nvidia_driver.sh     # Pre: GPU/CUDA check
 │       ├── check_docker.sh            # Pre: Docker availability check
@@ -779,7 +422,7 @@ your-project/
 └── venv/                              # Virtual environment (created by install.py)
 ```
 
-**Note:** Quickstrap keeps these items in your project root: `install.py`, `start.sh` (Linux), `start.bat` and `start.ps1` (Windows), and optionally `README.quickstrap.md`. All other files are in the `quickstrap/` subdirectory to minimize conflicts with your project.
+**Note:** Quickstrap keeps `install.py`, `start.sh`, and optionally `README.quickstrap.md` in your project root. All other files are in the `quickstrap/` subdirectory.
 
 ## Why Quickstrap?
 
@@ -794,95 +437,40 @@ Quickstrap provides all of this in a simple, reusable framework that requires no
 
 ## Troubleshooting
 
-### Linux: Scripts Not Executable
+### Scripts Not Executable
 
 ```bash
 chmod +x install.py start.sh
 chmod +x quickstrap/scripts/*.sh
 ```
 
-### Linux: Virtual Environment Issues
+### Virtual Environment Issues
 
 ```bash
-# Rebuild the virtual environment
 ./install.py --rebuild-venv
 ```
 
-### Linux: Missing System Packages
+### Missing System Packages
 
 ```bash
 sudo apt install <package-name>
 ./install.py
 ```
 
-### Windows: PowerShell Execution Policy Error
-
-Use `start.bat` instead of `start.ps1` - it bypasses the execution policy automatically.
-
-If you still need to run PowerShell scripts directly:
-
-```powershell
-# Run as Administrator
-Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-```
-
-### Windows: Python Not Found
-
-Ensure Python is installed and added to PATH. During installation from [python.org](https://www.python.org/downloads/), check the "Add Python to PATH" option.
-
-To verify Python is in PATH:
-
-```powershell
-python --version
-```
-
-### Windows: Virtual Environment Issues
-
-```powershell
-# Rebuild the virtual environment
-python install.py --rebuild-venv
-```
-
-### Windows: "venv" Module Not Found
-
-Some Python installations don't include the `venv` module. Reinstall Python from [python.org](https://www.python.org/downloads/) ensuring you check all optional features.
-
 ## FAQ
-
-### Supported Platforms
-
-Quickstrap supports **Linux** (Debian/Ubuntu-based) and **Windows** (10/11 with PowerShell).
-
-| Feature | Linux | Windows |
-|---------|-------|---------|
-| Python venv creation | ✓ | ✓ |
-| Python package installation | ✓ | ✓ |
-| Profile selection | ✓ | ✓ |
-| Feature detection | ✓ | ✓ |
-| System package verification | ✓ (dpkg) | ✗ (manual) |
-| Pre/Post-install bash scripts | ✓ | ✗ (skipped) |
-| Config file location | Project directory | Project directory |
 
 ### Adding Python Packages
 
 Edit `quickstrap/requirements_python.txt` and rebuild:
 
-**Linux:**
 ```bash
 ./install.py --rebuild-venv
-```
-
-**Windows:**
-```powershell
-python install.py --rebuild-venv
 ```
 
 ### Pre-Install vs Post-Install Scripts
 
 - **Pre-install**: Run before venv creation (e.g., check GPU drivers)
 - **Post-install**: Run after packages installed (e.g., init database)
-
-**Note for Windows users:** Pre-install and post-install scripts are bash scripts (`.sh`) and will be skipped on Windows. If your application requires these scripts, you'll need to run them manually or create PowerShell equivalents.
 
 ## License
 
