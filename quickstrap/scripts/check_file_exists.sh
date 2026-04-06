@@ -41,5 +41,5 @@
 #     echo "✓ Found: $file"
 # done
 
-echo "File check completed successfully!"
+echo "WARNING: This is a template script. Uncomment and customize the checks above before use."
 exit 0

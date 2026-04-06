@@ -34,5 +34,5 @@
 #     echo "Configure printers with: system-config-printer"
 # fi
 
-echo "CUPS check completed successfully!"
+echo "WARNING: This is a template script. Uncomment and customize the checks above before use."
 exit 0

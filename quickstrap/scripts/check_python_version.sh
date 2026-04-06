@@ -68,5 +68,5 @@
 #     echo "  sudo apt install python3-dev"
 # fi
 
-echo "Python version check completed successfully!"
+echo "WARNING: This is a template script. Uncomment and customize the checks above before use."
 exit 0

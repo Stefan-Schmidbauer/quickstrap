@@ -73,5 +73,5 @@
 #     echo "  Docker Compose version: $COMPOSE_VERSION (plugin)"
 # fi
 
-echo "Docker check completed successfully!"
+echo "WARNING: This is a template script. Uncomment and customize the checks above before use."
 exit 0

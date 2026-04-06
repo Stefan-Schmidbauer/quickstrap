@@ -43,5 +43,5 @@
 # chmod 700 "$CONFIG_DIR"
 # echo "✓ Set permissions on config directory"
 
-echo "Configuration setup completed successfully!"
+echo "WARNING: This is a template script. Uncomment and customize the checks above before use."
 exit 0

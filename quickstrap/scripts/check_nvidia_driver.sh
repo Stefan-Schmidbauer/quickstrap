@@ -35,5 +35,5 @@
 #     exit 1
 # fi
 
-echo "NVIDIA driver check completed successfully!"
+echo "WARNING: This is a template script. Uncomment and customize the checks above before use."
 exit 0

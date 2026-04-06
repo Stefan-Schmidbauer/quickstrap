@@ -493,6 +493,7 @@ def validate_profile_files(profile: Dict) -> List[str]:
         List of missing files with their context (empty if all files exist)
     """
     missing = []
+    platform = get_platform_name()
 
     # Check python requirements (platform-specific or generic)
     python_req = resolve_platform_config(profile, 'python_requirements')
@@ -500,7 +501,6 @@ def validate_profile_files(profile: Dict) -> List[str]:
         missing.append(f"{python_req} (python_requirements)")
     elif not python_req:
         # No python requirements found at all
-        platform = get_platform_name()
         missing.append(f"python_requirements_{platform} or python_requirements (not specified)")
 
     # Check system requirements

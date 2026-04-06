@@ -330,12 +330,11 @@ This activates the venv and sets `QUICKSTRAP_APP_NAME`, `QUICKSTRAP_CONFIG_DIR`,
 
 Global application configuration:
 
-| Field           | Required | Description                                                     |
-| --------------- | -------- | --------------------------------------------------------------- |
-| `app_name`              | Yes      | Display name of your application (also used for config filename)              |
-| `config_dir`            | No       | Deprecated - config is now stored in project directory                        |
-| `start_command`         | Yes      | Command to start your application (e.g., `python3 src/main.py`)              |
-| `after_install`         | No       | Message displayed after successful installation                               |
+| Field              | Required | Description                                                      |
+| ------------------ | -------- | ---------------------------------------------------------------- |
+| `app_name`         | Yes      | Display name of your application (also used for config filename) |
+| `start_command`    | Yes      | Command to start your application (e.g., `python3 src/main.py`) |
+| `after_install`    | No       | Message displayed after successful installation                  |
 
 ### Profile Section (`[profile:NAME]`)
 
@@ -356,7 +355,6 @@ Installation profile configuration:
 ```ini
 [metadata]
 app_name = My Amazing App
-# config_dir is deprecated - config is stored in project directory
 start_command = python3 src/main.py
 after_install = Start with: ./start.sh
 
@@ -377,23 +375,6 @@ Linux (Debian/Ubuntu-based). Install these system packages:
 ```bash
 sudo apt install python3 python3-pip python3-venv
 ```
-
-### Windows
-
-The automated installer (`install.py`) requires Linux. On Windows, install manually:
-
-```
-python -m venv venv
-venv\Scripts\activate
-pip install -r quickstrap/requirements_python.txt
-```
-
-Then start with:
-```
-python main.py
-```
-
-> **Note:** System packages listed in `quickstrap/requirements_system.txt` (if any) may need manual installation on Windows.
 
 ## Quickstrap Structure
 

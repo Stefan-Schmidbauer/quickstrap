@@ -48,5 +48,5 @@
 # TABLE_COUNT=$(sqlite3 "$DB_FILE" "SELECT count(*) FROM sqlite_master WHERE type='table';")
 # echo "✓ Database contains $TABLE_COUNT tables"
 
-echo "Database check completed successfully!"
+echo "WARNING: This is a template script. Uncomment and customize the checks above before use."
 exit 0

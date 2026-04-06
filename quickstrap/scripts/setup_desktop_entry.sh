@@ -70,5 +70,5 @@
 #     echo "✓ Desktop shortcut created: $DESKTOP_SHORTCUT"
 # fi
 
-echo "Desktop integration setup completed successfully!"
+echo "WARNING: This is a template script. Uncomment and customize the checks above before use."
 exit 0
