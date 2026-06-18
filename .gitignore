@@ -25,6 +25,7 @@ build/
 install.log
 requirements_frozen.txt
 *_profile.ini
+*.state
 
 # Environment variables (sensitive data)
 .env
