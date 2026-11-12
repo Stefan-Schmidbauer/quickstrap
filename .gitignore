@@ -52,8 +52,8 @@ requirements_frozen.txt
 # *.db
 doc/
 
-# Blog articles (not part of the framework)
-blog/
+# Articles, LinkedIn/website images, videos — local only, never committed
+marketing/
 
 # Auto Claude data directory
 .auto-claude/
